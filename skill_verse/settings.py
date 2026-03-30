@@ -82,7 +82,7 @@ WSGI_APPLICATION = 'skill_verse.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'storefront',
+        'NAME': 'skill_verse',
         'USER': 'root',
         'PASSWORD': '',
         'HOST': 'localhost',

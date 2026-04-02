@@ -38,7 +38,21 @@ class Course(models.Model):
     uuid = models.UUIDField(unique=True, editable=False, null=True, blank=True) 
     title = models.CharField(max_length=255)
     description = models.TextField()
-    instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    # ✅ Instructor (required)
+    instructor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='instructed_courses'
+    )
+
+    # ✅ Organization (optional owner)
+    organization = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='organization_courses'
+    )
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     difficulty = models.CharField(max_length=50, choices=DIFFICULTY_CHOICES, default='beginner')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
@@ -46,9 +60,25 @@ class Course(models.Model):
     rating = models.FloatField(default=0.0)
     cover_image = models.ImageField(upload_to='course_covers/', blank=True, null=True)
     tags = models.ManyToManyField('Tag', blank=True)
+    is_featured = models.BooleanField(default=False)
 
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     def __str__(self) -> str:
         return self.title
+    
+    # ✅ Optional helper
+    @property
+    def owner(self):
+        return self.organization if self.organization else self.instructor
+# # Courses taught by instructor
+# user.instructed_courses.all()
+
+# # Courses owned by organization
+# user.organization_courses.all()
+
+# # Get owner
+# course.owner
 
 class CourseMaterial(models.Model):
     MATERIAL_TYPE_CHOICES = [('video', 'Video'), ('document', 'Document'), ('quiz', 'Quiz')]
@@ -61,7 +91,7 @@ class CourseMaterial(models.Model):
 
     def __str__(self) -> str:
         return f"{self.course.title} - {self.title}"
-    
+
 
 class Enrollment(models.Model):
     STATUS_CHOICES = [('enrolled', 'Enrolled'), ('completed', 'Completed')]

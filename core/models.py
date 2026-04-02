@@ -53,7 +53,7 @@ class Course(models.Model):
         blank=True,
         related_name='organization_courses'
     )
-    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+    categories = models.ManyToManyField('Category', blank=True)
     difficulty = models.CharField(max_length=50, choices=DIFFICULTY_CHOICES, default='beginner')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     enrollment_count = models.PositiveIntegerField(default=0)
@@ -81,7 +81,7 @@ class Course(models.Model):
 # course.owner
 
 class CourseMaterial(models.Model):
-    MATERIAL_TYPE_CHOICES = [('video', 'Video'), ('document', 'Document'), ('quiz', 'Quiz')]
+    MATERIAL_TYPE_CHOICES = [('video', 'Video'), ('document', 'Document')]
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
     material_type = models.CharField(max_length=20, choices=MATERIAL_TYPE_CHOICES)
@@ -92,9 +92,9 @@ class CourseMaterial(models.Model):
     def __str__(self) -> str:
         return f"{self.course.title} - {self.title}"
 
-
 class Enrollment(models.Model):
-    STATUS_CHOICES = [('enrolled', 'Enrolled'), ('completed', 'Completed')]
+    STATUS_CHOICES = [('enrolled', 'Enrolled'), ('in_progress', 'In Progress'),
+                    ('completed', 'Completed'), ('dropped', 'Dropped')]
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     enrolled_at = models.DateTimeField(auto_now_add=True)
@@ -150,8 +150,6 @@ class AssessmentResult(models.Model):
 
 class Certificate(models.Model):
     STATUS_CHOICES = [('valid', 'Valid'), ('revoked', 'Revoked')]
-    issuer = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     enrollment = models.OneToOneField(Enrollment, on_delete=models.CASCADE)
     certificate_url = models.URLField()
     verification_code = models.CharField(max_length=100, unique=True)
@@ -162,11 +160,15 @@ class Certificate(models.Model):
         return f"Certificate for {self.enrollment.user.username} - {self.enrollment.course.title}"
 
 class Review(models.Model):
+    STATUS_CHOICES = [('pending', 'Pending'), ('approved','Approved'), ('rejected', 'Rejected')]
     RATING_CHOICES = [(i, str(i)) for i in range(1, 6)]
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     rating = models.IntegerField(choices=RATING_CHOICES)
     comment = models.TextField(blank=True, null=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='pending')
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -176,12 +178,12 @@ class Review(models.Model):
         return f"{self.user.username} rated {self.course.title} - {self.rating} stars"
     
 class Comment(models.Model):
+    STATUS_CHOICES = [('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')]
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     content = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
-
     def __str__(self) -> str:
         return f"{self.user.username} commented on {self.course.title}"
-    
 

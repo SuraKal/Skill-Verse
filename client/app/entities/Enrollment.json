@@ -1,0 +1,35 @@
+{
+  "name": "Enrollment",
+  "type": "object",
+  "properties": {
+    "course_id": {
+      "type": "string"
+    },
+    "course_title": {
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["enrolled", "in_progress", "completed", "dropped"],
+      "default": "enrolled"
+    },
+    "progress": {
+      "type": "number",
+      "default": 0
+    },
+    "rating": {
+      "type": "number"
+    },
+    "completed_date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": ["course_id", "user_email"]
+}

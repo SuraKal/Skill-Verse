@@ -1,0 +1,26 @@
+{
+  "name": "DiscussionReply",
+  "type": "object",
+  "properties": {
+    "discussion_id": {
+      "type": "string"
+    },
+    "author_email": {
+      "type": "string"
+    },
+    "author_name": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "likes": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "discussion_id",
+    "content"
+  ]
+}

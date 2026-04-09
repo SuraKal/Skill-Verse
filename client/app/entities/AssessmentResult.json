@@ -1,0 +1,55 @@
+{
+  "name": "AssessmentResult",
+  "type": "object",
+  "properties": {
+    "assessment_id": {
+      "type": "string"
+    },
+    "assessment_title": {
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question_index": {
+            "type": "number"
+          },
+          "selected_answer": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "score": {
+      "type": "number"
+    },
+    "total_points": {
+      "type": "number"
+    },
+    "percentage": {
+      "type": "number"
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Proctoring flags like tab-switch, copy-paste"
+    },
+    "time_taken_minutes": {
+      "type": "number"
+    }
+  },
+  "required": ["assessment_id", "user_email"]
+}

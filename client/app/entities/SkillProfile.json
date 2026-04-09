@@ -1,0 +1,47 @@
+{
+  "name": "SkillProfile",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "skill_name": {
+      "type": "string"
+    },
+    "skill_type": {
+      "type": "string",
+      "enum": ["teaching", "learning"]
+    },
+    "proficiency_level": {
+      "type": "string",
+      "enum": ["beginner", "intermediate", "advanced", "expert"]
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "programming",
+        "design",
+        "business",
+        "language",
+        "music",
+        "science",
+        "math",
+        "writing",
+        "marketing",
+        "other"
+      ]
+    },
+    "availability": {
+      "type": "string",
+      "enum": ["available", "busy", "unavailable"],
+      "default": "available"
+    }
+  },
+  "required": ["skill_name", "skill_type"]
+}

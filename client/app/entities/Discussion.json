@@ -1,0 +1,44 @@
+{
+  "name": "Discussion",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "author_email": {
+      "type": "string"
+    },
+    "author_name": {
+      "type": "string"
+    },
+    "community_id": {
+      "type": "string"
+    },
+    "community_name": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["discussion", "question", "suggestion", "announcement"],
+      "default": "discussion"
+    },
+    "likes": {
+      "type": "number",
+      "default": 0
+    },
+    "replies_count": {
+      "type": "number",
+      "default": 0
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": ["title", "content"]
+}

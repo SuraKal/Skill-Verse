@@ -1,0 +1,60 @@
+{
+  "name": "Assessment",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "course_id": {
+      "type": "string"
+    },
+    "instructor_email": {
+      "type": "string"
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "correct_answer": {
+            "type": "number"
+          },
+          "points": {
+            "type": "number",
+            "default": 1
+          }
+        }
+      }
+    },
+    "time_limit_minutes": {
+      "type": "number",
+      "default": 60
+    },
+    "passing_score": {
+      "type": "number",
+      "default": 70
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "published", "closed"],
+      "default": "draft"
+    },
+    "proctoring_enabled": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": ["title"]
+}

@@ -1,0 +1,49 @@
+{
+  "name": "Community",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "programming",
+        "design",
+        "business",
+        "language",
+        "music",
+        "science",
+        "math",
+        "writing",
+        "marketing",
+        "other"
+      ]
+    },
+    "cover_image": {
+      "type": "string"
+    },
+    "creator_email": {
+      "type": "string"
+    },
+    "member_count": {
+      "type": "number",
+      "default": 1
+    },
+    "visibility": {
+      "type": "string",
+      "enum": ["public", "private"],
+      "default": "public"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": ["name"]
+}

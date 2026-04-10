@@ -317,3 +317,11 @@ class Announcement(models.Model):
     def __str__(self):
         return f"{self.course.title} - {self.title}"
 
+class FAQ(models.Model):
+    course = models.ForeignKey(
+        Course, on_delete=models.CASCADE, related_name="faqs")
+    question = models.TextField()
+    answer = models.TextField()
+
+    def __str__(self):
+        return f"{self.course.title} - FAQ: {self.question[:50]}..."

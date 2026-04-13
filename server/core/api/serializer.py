@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Assessment, Course, CourseMaterial, Enrollment
+from .models import Assessment, AssessmentResult, Course, CourseMaterial, Enrollment, Question
 
 # Turns the data into JSON format and vice versa
 class CourseSerializer(serializers.ModelSerializer):
@@ -21,4 +21,16 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 class AssessmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Assessment
+        fields = '__all__'
+
+
+class QuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Question
+        fields = '__all__'
+
+
+class AssessmentResultSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssessmentResult
         fields = '__all__'

@@ -46,3 +46,10 @@ class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
         fields = '__all__'
+
+
+class CommentSerializer(serializers.Serializer):
+    user = serializers.CharField()
+    comment = serializers.CharField()
+    status = serializers.CharField()
+    created_at = serializers.DateTimeField()

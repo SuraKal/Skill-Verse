@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Course, Assessment, Enrollment, Certificate, Review, Comment
-from .serializer import CourseSerializer, AssessmentViewSet, EnrollmentViewSet, CertificateViewSet, ReviewViewSet, CommentViewSet  
+from .serializer import CourseSerializer
 from .pagination import DefaultPagination
 from rest_framework import viewsets
 

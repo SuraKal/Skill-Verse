@@ -1,33 +1,33 @@
-import { Toaster } from "@/components/ui/toaster";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClientInstance } from "@/lib/query-client";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
-import PageNotFound from "./lib/PageNotFound";
-import { AuthProvider, useAuth } from "@/lib/AuthContext";
-import UserNotRegisteredError from "@/components/UserNotRegisteredError";
+import { Toaster } from "@/components/ui/toaster"
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClientInstance } from '@/lib/query-client'
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import PageNotFound from './lib/PageNotFound';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
-import AppLayout from "@/components/layout/AppLayout";
-import Dashboard from "@/pages/Dashboard";
-import SkillExchange from "@/pages/SkillExchange";
-import Courses from "@/pages/Courses";
-import CourseDetail from "@/pages/CourseDetail";
-import Assessments from "@/pages/Assessments";
-import TakeAssessment from "@/pages/TakeAssessment";
-import Certificates from "@/pages/Certificates";
-import Jobs from "@/pages/Jobs";
-import JobDetail from "@/pages/JobDetail";
-import Community from "@/pages/Community";
-import CommunityDetail from "@/pages/CommunityDetail";
-import DiscussionDetail from "@/pages/DiscussionDetail";
-import Events from "@/pages/Events";
-import Messages from "@/pages/Messages";
-import Analytics from "@/pages/Analytics";
-import AdminPanel from "@/pages/AdminPanel";
-import Profile from "@/pages/Profile";
+import AppLayout from '@/components/layout/AppLayout';
+import Dashboard from '@/pages/Dashboard';
+import SkillExchange from '@/pages/SkillExchange';
+import Courses from '@/pages/Courses';
+import CourseDetail from '@/pages/CourseDetail';
+import Assessments from '@/pages/Assessments';
+import TakeAssessment from '@/pages/TakeAssessment';
+import Certificates from '@/pages/Certificates';
+import Jobs from '@/pages/Jobs';
+import JobDetail from '@/pages/JobDetail';
+import Community from '@/pages/Community';
+import CommunityDetail from '@/pages/CommunityDetail';
+import DiscussionDetail from '@/pages/DiscussionDetail';
+import Events from '@/pages/Events';
+import Messages from '@/pages/Messages';
+import Analytics from '@/pages/Analytics';
+import AdminPanel from '@/pages/AdminPanel';
+import Profile from '@/pages/Profile';
+import AuthScreen from '@/pages/AuthScreen';
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } =
-    useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
@@ -41,9 +41,9 @@ const AuthenticatedApp = () => {
   }
 
   if (authError) {
-    if (authError.type === "user_not_registered") {
+    if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
-    } else if (authError.type === "auth_required") {
+    } else if (authError.type === 'auth_required') {
       navigateToLogin();
       return null;
     }
@@ -63,16 +63,14 @@ const AuthenticatedApp = () => {
         <Route path="/jobs/:id" element={<JobDetail />} />
         <Route path="/community" element={<Community />} />
         <Route path="/community/:id" element={<CommunityDetail />} />
-        <Route
-          path="/community/:communityId/discussion/:id"
-          element={<DiscussionDetail />}
-        />
+        <Route path="/community/:communityId/discussion/:id" element={<DiscussionDetail />} />
         <Route path="/events" element={<Events />} />
         <Route path="/messages" element={<Messages />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/profile" element={<Profile />} />
       </Route>
+      <Route path="/auth" element={<AuthScreen />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
@@ -88,7 +86,7 @@ function App() {
         <Toaster />
       </QueryClientProvider>
     </AuthProvider>
-  );
+  )
 }
 
-export default App;
+export default App

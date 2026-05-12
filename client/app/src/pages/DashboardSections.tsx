@@ -248,7 +248,9 @@ export function AnalyticsPage({
                   <p>{organization.description || organization.email}</p>
                 </div>
                 <span>{organization.member_count ?? 0} members</span>
+                
               </div>
+
             ))}
             {organizations.length === 0 && (
               <div className="sv-empty" style={{ padding: '20px 0' }}>
@@ -462,8 +464,7 @@ export function OrganizationsPage({
             </label>
 
             {createError && <div className="sv-auth__error">{createError}</div>}
-
-            <button className="btn btn--blue" type="submit" disabled={creating}>
+            <button className="btn btn--blue sv-sidebar__signout" type="submit" disabled={creating}>
               {creating ? 'Creating...' : 'Create organization'}
             </button>
           </form>

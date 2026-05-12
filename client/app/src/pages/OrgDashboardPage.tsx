@@ -161,7 +161,7 @@ function InviteForm({
           placeholder="colleague@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
           aria-label="Email address to invite"
         />
         <select
@@ -171,7 +171,6 @@ function InviteForm({
           aria-label="Role for invitation"
         >
           <option value="member">Member</option>
-          <option value="instructor">Instructor</option>
           <option value="manager">Manager</option>
         </select>
         <button
@@ -180,19 +179,19 @@ function InviteForm({
           disabled={sending || !email.trim()}
           aria-busy={sending}
         >
-          {sending ? 'Sending…' : 'Send invite'}
+          {sending ? "Sending…" : "Send invite"}
         </button>
       </div>
       {error && (
         <p
-          style={{ fontSize: 12, color: 'var(--accent-red)', marginTop: 8 }}
+          style={{ fontSize: 12, color: "var(--accent-red)", marginTop: 8 }}
           role="alert"
         >
           {error}
         </p>
       )}
     </div>
-  )
+  );
 }
 
 // ── Permissions panel ──────────────────────────────────────────────────────

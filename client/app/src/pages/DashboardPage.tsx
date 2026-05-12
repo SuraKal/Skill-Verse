@@ -1,5 +1,5 @@
 // pages/DashboardPage.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchDashboard } from '../lib/api'
 import type { DashboardData, Organization, InvitationDetail } from '../types'
@@ -17,7 +17,7 @@ function MetricCard({
   label: string
   value: string | number
   note?: string
-  icon: React.ReactNode
+  icon: ReactNode
   noteVariant?: 'up' | 'down' | 'neutral'
 }) {
   return (

@@ -1,6 +1,6 @@
 // pages/LandingPage.tsx
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { fetchPublicBootstrap } from '../lib/api'
 import type { PlatformBootstrap, PlatformModule } from '../types'
 import '../styles/LandingPage.css'

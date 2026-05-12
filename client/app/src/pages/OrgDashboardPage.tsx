@@ -1,5 +1,5 @@
 // pages/OrgDashboardPage.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { fetchOrganizationDashboard, sendOrganizationInvitation } from '../lib/api'
 import type {
@@ -20,7 +20,7 @@ function MetricCard({
   label: string
   value: string | number
   note?: string
-  icon: React.ReactNode
+  icon: ReactNode
 }) {
   return (
     <div className="sv-metric">

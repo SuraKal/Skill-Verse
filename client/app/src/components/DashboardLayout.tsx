@@ -1,4 +1,5 @@
 // components/DashboardLayout.tsx
+import type { ReactNode } from 'react'
 import { useNavigate, useLocation, Outlet, Link } from 'react-router-dom'
 import type { DashboardData } from '../types'
 import '../styles/DashboardLayout.css'
@@ -52,7 +53,7 @@ function NavItem({
   badge,
 }: {
   to: string
-  icon: React.ReactNode
+  icon: ReactNode
   label: string
   badge?: number
 }) {
@@ -225,14 +226,19 @@ function Sidebar({
       {/* User footer */}
       <div className="sv-sidebar__footer">
         {user && (
-          <div className="sv-user-row" role="button" tabIndex={0} aria-label="Account menu">
-            <Avatar name={user.full_name || user.username} />
-            <div className="sv-user-row__info">
-              <div className="sv-user-row__name">{user.full_name || user.username}</div>
-              <div className="sv-user-row__role">{user.email}</div>
+          <>
+            <div className="sv-user-row" role="button" tabIndex={0} aria-label="Account menu">
+              <Avatar name={user.full_name || user.username} />
+              <div className="sv-user-row__info">
+                <div className="sv-user-row__name">{user.full_name || user.username}</div>
+                <div className="sv-user-row__role">{user.email}</div>
+              </div>
+              <span className="sv-user-row__dots" aria-hidden><Icon.Dots /></span>
             </div>
-            <span className="sv-user-row__dots" aria-hidden><Icon.Dots /></span>
-          </div>
+            <button className="sv-sidebar__signout" onClick={onSignOut}>
+              Sign out
+            </button>
+          </>
         )}
       </div>
     </aside>

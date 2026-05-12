@@ -1,133 +1,225 @@
-// App.tsx — router wiring example
-// Drop this into your existing router setup or adapt as needed.
-//
-// Assumes:
-//   - react-router-dom v6
-//   - A useAuth() hook or similar that exposes { token, user, signOut }
-//   - fetchDashboard / fetchOrganizationDashboard imported from api.ts
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { DashboardLayout } from './components/DashboardLayout'
+import { fetchDashboard } from './lib/api'
+import { AuthPage } from './pages/AuthPage'
+import {
+  AnalyticsPage,
+  InvitationsPage,
+  MembersPage,
+  OrganizationsPage,
+  OrganizationsShowcasePage,
+  SettingsPage,
+} from './pages/DashboardSections'
+import { DashboardPage } from './pages/DashboardPage'
+import { LandingPage } from './pages/LandingPage'
+import { OrgDashboardPage } from './pages/OrgDashboardPage'
+import type { DashboardData, LoginResponse } from './types'
 
-import { LandingPage } from "./pages/LandingPage";
-import { DashboardLayout } from "./components/DashboardLayout";
-import { DashboardPage } from "./pages/DashboardPage";
-import { OrgDashboardPage } from "./pages/OrgDashboardPage";
-import { fetchDashboard } from "./lib/api";
-import type { DashboardData } from "./types";
-
-// Import global styles first
-import "./styles/globals.css";
-
-// ── Auth guard ──────────────────────────────────────────────────────────────
 function RequireAuth({
   token,
   children,
 }: {
-  token: string | null;
-  children: React.ReactNode;
+  token: string | null
+  children: ReactNode
 }) {
-  if (!token) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+  if (!token) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
 }
 
-// ── Root app ─────────────────────────────────────────────────────────────────
-export default function App() {
-  // Replace with your real auth state management (Zustand, Context, etc.)
-  const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem("access_token"),
-  );
-  const [dashData, setDashData] = useState<DashboardData | null>(null);
+function getDashboardChrome(pathname: string) {
+  if (pathname.startsWith('/dashboard/organizations/')) {
+    return {
+      title: 'Organization',
+      breadcrumb: 'Workspace / Organization dashboard',
+    }
+  }
 
-  // Prefetch dashboard data when token is available so sidebar is populated
+  if (pathname.startsWith('/dashboard/organizations')) {
+    return {
+      title: 'Organizations',
+      breadcrumb: 'Workspace / Manage workspaces',
+    }
+  }
+
+  if (pathname.startsWith('/dashboard/invitations')) {
+    return {
+      title: 'Invitations',
+      breadcrumb: 'Overview / Pending invitations',
+    }
+  }
+
+  if (pathname.startsWith('/dashboard/members')) {
+    return {
+      title: 'Members',
+      breadcrumb: 'Workspace / Team visibility',
+    }
+  }
+
+  if (pathname.startsWith('/dashboard/analytics')) {
+    return {
+      title: 'Analytics',
+      breadcrumb: 'Overview / Performance snapshot',
+    }
+  }
+
+  if (pathname.startsWith('/dashboard/settings')) {
+    return {
+      title: 'Settings',
+      breadcrumb: 'Account / Profile and preferences',
+    }
+  }
+
+  return {
+    title: 'Dashboard',
+    breadcrumb: 'Overview / Personal workspace',
+  }
+}
+
+function DashboardShell({
+  data,
+  onSignOut,
+}: {
+  data: DashboardData | null
+  onSignOut: () => void
+}) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const chrome = useMemo(
+    () => getDashboardChrome(location.pathname),
+    [location.pathname],
+  )
+
+  return (
+    <DashboardLayout
+      data={data}
+      topBarTitle={chrome.title}
+      topBarBreadcrumb={chrome.breadcrumb}
+      onSignOut={onSignOut}
+      onNewOrg={() => navigate('/dashboard/organizations?intent=create')}
+    />
+  )
+}
+
+export default function App() {
+  const [session, setSession] = useState<LoginResponse | null>(null)
+  const [token, setToken] = useState<string | null>(() =>
+    localStorage.getItem('access_token'),
+  )
+  const [dashData, setDashData] = useState<DashboardData | null>(null)
+
+  useEffect(() => {
+    const rawUser = localStorage.getItem('session_user')
+    if (!token || !rawUser) {
+      return
+    }
+
+    try {
+      const user = JSON.parse(rawUser) as LoginResponse['user']
+      setSession({
+        access: token,
+        refresh: localStorage.getItem('refresh_token') ?? '',
+        user,
+      })
+    } catch {
+      localStorage.removeItem('session_user')
+    }
+  }, [token])
+
   useEffect(() => {
     if (!token) {
-      setDashData(null);
-      return;
+      setDashData(null)
+      return
     }
+
     fetchDashboard(token)
       .then(setDashData)
-      .catch(() => setDashData(null));
-  }, [token]);
+      .catch(() => setDashData(null))
+  }, [token])
+
+  const handleSession = (nextSession: LoginResponse) => {
+    localStorage.setItem('access_token', nextSession.access)
+    localStorage.setItem('refresh_token', nextSession.refresh)
+    localStorage.setItem('session_user', JSON.stringify(nextSession.user))
+    setToken(nextSession.access)
+    setSession(nextSession)
+  }
 
   const handleSignOut = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    setToken(null);
-    setDashData(null);
-  };
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('session_user')
+    setToken(null)
+    setSession(null)
+    setDashData(null)
+  }
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
         <Route path="/" element={<LandingPage />} />
-
-        {/* Auth pages — build these separately */}
-        <Route path="/login" element={<div>Login page</div>} />
-        <Route path="/register" element={<div>Register page</div>} />
-
-        {/* Dashboard shell with sidebar */}
+        <Route path="/organizations" element={<OrganizationsShowcasePage />} />
+        <Route
+          path="/login"
+          element={
+            token ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <AuthPage mode="login" onSuccess={handleSession} />
+            )
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            token ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <AuthPage mode="register" onSuccess={handleSession} />
+            )
+          }
+        />
         <Route
           path="/dashboard"
           element={
             <RequireAuth token={token}>
-              <DashboardLayout
-                data={dashData}
-                topBarTitle="Dashboard"
-                onSignOut={handleSignOut}
-                onNewOrg={() => {
-                  /* open create org modal */
-                }}
-              />
+              <DashboardShell data={dashData} onSignOut={handleSignOut} />
             </RequireAuth>
           }
         >
-          {/* Index — personal dashboard */}
+          <Route index element={token ? <DashboardPage token={token} /> : null} />
           <Route
-            index
-            element={token ? <DashboardPage token={token} /> : null}
+            path="analytics"
+            element={token ? <AnalyticsPage token={token} dashboard={dashData} /> : null}
           />
-
-          {/* Organizations list */}
-          <Route path="organizations" element={<div>Organizations page</div>} />
-
-          {/* Organization detail dashboard */}
+          <Route
+            path="organizations"
+            element={token ? <OrganizationsPage token={token} onSession={handleSession} /> : null}
+          />
           <Route
             path="organizations/:organizationId"
             element={token ? <OrgDashboardPage token={token} /> : null}
           />
-
-          {/* Invitations */}
-          <Route path="invitations" element={<div>Invitations page</div>} />
-
-          {/* Settings */}
-          <Route path="settings" element={<div>Settings page</div>} />
+          <Route
+            path="invitations"
+            element={token ? <InvitationsPage token={token} onSession={handleSession} /> : null}
+          />
+          <Route path="members" element={token ? <MembersPage token={token} /> : null} />
+          <Route
+            path="settings"
+            element={token ? <SettingsPage token={token} onSession={handleSession} /> : null}
+          />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
-
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to={session ? '/dashboard' : '/'} replace />}
+        />
       </Routes>
     </BrowserRouter>
-  );
+  )
 }
-
-// ── File structure produced ───────────────────────────────────────────────
-//
-//  src/
-//  ├── styles/
-//  │   ├── globals.css          ← design tokens, reset, scrollbar
-//  │   ├── LandingPage.css      ← nav, hero, feature grid, CTA band
-//  │   ├── DashboardLayout.css  ← shell, sidebar, topbar
-//  │   └── Dashboard.css        ← metrics, panels, tables, forms
-//  │
-//  ├── components/
-//  │   └── DashboardLayout.tsx  ← sidebar + topbar shell (renders <Outlet>)
-//  │                               exports: DashboardLayout, Avatar, Icon, initials
-//  │
-//  ├── pages/
-//  │   ├── LandingPage.tsx      ← fetchPublicBootstrap() → modules, tagline
-//  │   ├── DashboardPage.tsx    ← fetchDashboard() → orgs, invites, stats
-//  │   └── OrgDashboardPage.tsx ← fetchOrganizationDashboard() → members, invites
-//  │
-//  └── App.tsx                  ← router wiring (this file)

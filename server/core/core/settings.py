@@ -10,9 +10,23 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-from pathlib import Path
-from decouple import config
 import os
+from datetime import timedelta
+from pathlib import Path
+
+from decouple import Csv, config
+
+
+def env_bool(name, default=False):
+    raw_value = config(name, default=default)
+    if isinstance(raw_value, bool):
+        return raw_value
+    normalized = str(raw_value).strip().lower()
+    if normalized in {'1', 'true', 'yes', 'on', 'debug'}:
+        return True
+    if normalized in {'0', 'false', 'no', 'off', 'release', 'prod', 'production'}:
+        return False
+    return bool(default)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,9 +39,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = env_bool('DEBUG', default=False)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost', cast=Csv())
 
 
 # Application definition
@@ -45,11 +59,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'django_filters',
-    "anymail",
+    'anymail',
+    'django_cleanup.apps.CleanupConfig',
 
     'api',
-
-    
 ]
 
 MIDDLEWARE = [
@@ -133,6 +146,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Media files (Uploaded files)
 MEDIA_URL = '/media/'
@@ -144,7 +158,7 @@ REST_FRAMEWORK = {
     ),
 
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+        'rest_framework.permissions.IsAuthenticated',
     ),
 
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -154,12 +168,37 @@ REST_FRAMEWORK = {
     ],
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', default=DEBUG)
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://127.0.0.1:5173,http://localhost:5173',
+    cast=Csv(),
+)
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'UPDATE_LAST_LOGIN': True,
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Skill Verse API',
+    'DESCRIPTION': 'User-centric platform API for authentication, organizations, memberships, and invitations.',
+    'VERSION': '1.0.0',
+}
 
 
 # Email settings
-EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
+EMAIL_BACKEND = 'anymail.backends.resend.EmailBackend'
 ANYMAIL = {
-    "RESEND_API_KEY": config('RESEND_API_KEY'),
+    'RESEND_API_KEY': config('RESEND_API_KEY'),
 }
-DEFAULT_FROM_EMAIL = "skill_verse@theamentrading.com"
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL', default='skill_verse@theamentrading.com')
+
+
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+INVITATION_EXPIRY_DAYS = config('INVITATION_EXPIRY_DAYS', default=7, cast=int)
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

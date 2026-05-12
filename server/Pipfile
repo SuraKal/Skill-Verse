@@ -5,6 +5,16 @@ name = "pypi"
 
 [packages]
 django = "*"
+djangorestframework = "*"
+mysqlclient = "*"
+django-cors-headers = "*"
+python-decouple = "*"
+pillow = "*"
+djangorestframework-simplejwt = "*"
+drf-spectacular = "*"
+django-filter = "*"
+django-cleanup = "*"
+django-anymail = {extras = ["resend"], version = "*"}
 
 [dev-packages]
 

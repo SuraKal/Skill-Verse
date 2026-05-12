@@ -82,6 +82,73 @@ This document captures the current structure, conventions, and implementation gu
 - Respect the existing Vite + React + TypeScript toolchain instead of introducing parallel build systems.
 - Respect the existing ESLint flat config and fix warnings rather than muting rules by default.
 
+## Backend Core Dependencies (Required Stack)
+
+The backend uses the following stable dependency set:
+
+- Django (core framework)
+- Django REST Framework (`rest_framework`) for APIs
+- MySQL database backend (`mysqlclient`)
+- CORS handling (`django-cors-headers`)
+- Environment variables (`python-decouple`)
+- Image/file handling (`Pillow`)
+- JWT authentication (`djangorestframework-simplejwt`)
+- API schema documentation (`drf-spectacular`)
+- Filtering support (`django-filter`)
+- File cleanup automation (`django-cleanup`)
+- Email delivery via Resend (`django-anymail[resend]`)
+
+All backend features must align with this stack unless explicitly justified.
+
+---
+
+## Authentication Strategy
+
+- Authentication is JWT-based using `SimpleJWT`.
+- The frontend must never use Django session authentication for login state.
+- API authentication is stateless and token-driven.
+- Tokens are issued from backend and consumed by the React frontend.
+
+---
+
+## Email System
+
+- Email sending is handled only in the Django backend (never in React).
+- Email provider: Resend via `django-anymail`.
+- API keys must be loaded from environment variables using `python-decouple`.
+- All email-related logic must live in a dedicated service layer (e.g. `api/services/email_service.py`).
+- Email should be triggered from backend views, signals, or service functions only.
+
+---
+
+## Media Handling
+
+- Uploaded files are stored using Django `MEDIA_ROOT`.
+- Media files are served only in development using `django.conf.urls.static`.
+- Image handling requires the `Pillow` package.
+- All file uploads must go through Django backend, never directly from frontend to storage.
+
+---
+
+## Environment Variable Rules
+
+- All secrets must be stored in `.env`.
+- Environment variables must be accessed using `decouple.config()`.
+- Do NOT use `os.environ.get()` inside application logic unless there is a specific reason.
+- `.env` must never be committed to version control.
+
+---
+
+## Backend Guardrails (Updated)
+
+- Do not hardcode credentials, API keys, or secret tokens anywhere in the codebase.
+- Do not implement email, authentication, or background jobs in the frontend layer.
+- All business-critical logic must remain in Django API layer or service modules.
+- Keep CORS and host configuration environment-aware.
+- Ensure every installed dependency is reflected in `Pipfile` and lockfile.
+
+
+
 ## File Placement Rules
 
 - Backend config changes belong under `server/core/core/`.

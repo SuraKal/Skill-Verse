@@ -207,7 +207,11 @@ function Sidebar({
       <nav className="sv-sidebar__nav">
         <span className="sv-sidebar__section-label">Overview</span>
         <NavItem to="/dashboard" icon={<Icon.Dashboard />} label="Dashboard" />
-        <NavItem to="/dashboard/analytics" icon={<Icon.Chart />} label="Analytics" />
+        <NavItem
+          to="/dashboard/analytics"
+          icon={<Icon.Chart />}
+          label="Analytics"
+        />
         <NavItem
           to="/dashboard/invitations"
           icon={<Icon.Bell />}
@@ -216,24 +220,46 @@ function Sidebar({
         />
 
         <span className="sv-sidebar__section-label">Workspace</span>
-        <NavItem to="/dashboard/organizations" icon={<Icon.Building />} label="Organizations" />
-        <NavItem to="/dashboard/members" icon={<Icon.Users />} label="Members" />
+        <NavItem
+          to="/dashboard/organizations"
+          icon={<Icon.Building />}
+          label="Organizations"
+        />
+        <NavItem
+          to="/dashboard/members"
+          icon={<Icon.Users />}
+          label="Members"
+        />
+
 
         <span className="sv-sidebar__section-label">Account</span>
-        <NavItem to="/dashboard/settings" icon={<Icon.Settings />} label="Settings" />
+        <NavItem
+          to="/dashboard/settings"
+          icon={<Icon.Settings />}
+          label="Settings"
+        />
       </nav>
 
       {/* User footer */}
       <div className="sv-sidebar__footer">
         {user && (
           <>
-            <div className="sv-user-row" role="button" tabIndex={0} aria-label="Account menu">
+            <div
+              className="sv-user-row"
+              role="button"
+              tabIndex={0}
+              aria-label="Account menu"
+            >
               <Avatar name={user.full_name || user.username} />
               <div className="sv-user-row__info">
-                <div className="sv-user-row__name">{user.full_name || user.username}</div>
+                <div className="sv-user-row__name">
+                  {user.full_name || user.username}
+                </div>
                 <div className="sv-user-row__role">{user.email}</div>
               </div>
-              <span className="sv-user-row__dots" aria-hidden><Icon.Dots /></span>
+              <span className="sv-user-row__dots" aria-hidden>
+                <Icon.Dots />
+              </span>
             </div>
             <button className="sv-sidebar__signout" onClick={onSignOut}>
               Sign out
@@ -242,7 +268,7 @@ function Sidebar({
         )}
       </div>
     </aside>
-  )
+  );
 }
 
 // ── Top bar ────────────────────────────────────────────────────────────────

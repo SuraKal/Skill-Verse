@@ -19,6 +19,12 @@ const jsonHeaders = (token?: string) => ({
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
 })
 
+function withAuthorization(token: string, headers?: HeadersInit): Headers {
+  const nextHeaders = new Headers(headers)
+  nextHeaders.set('Authorization', `Bearer ${token}`)
+  return nextHeaders
+}
+
 function notifyAuthSession(accessToken: string | null) {
   window.dispatchEvent(
     new CustomEvent<string | null>(AUTH_SESSION_EVENT, {
@@ -69,7 +75,7 @@ async function refreshAccessToken(): Promise<string | null> {
 async function authorizedFetch(input: string, init: RequestInit, token: string): Promise<Response> {
   const response = await fetch(input, {
     ...init,
-    headers: jsonHeaders(token),
+    headers: withAuthorization(token, init.headers),
   })
 
   if (response.status !== 401) {
@@ -83,7 +89,7 @@ async function authorizedFetch(input: string, init: RequestInit, token: string):
 
   return fetch(input, {
     ...init,
-    headers: jsonHeaders(nextAccessToken),
+    headers: withAuthorization(nextAccessToken, init.headers),
   })
 }
 
@@ -192,6 +198,91 @@ export async function sendOrganizationInvitation(
     body: JSON.stringify(payload),
   }, token)
   return parseJson<Record<string, unknown>>(response)
+}
+
+export async function createOrganizationCourse(
+  token: string,
+  organizationId: string,
+  payload: {
+    title: string
+    description: string
+    categoryIds: string[]
+    organizationIds: string[]
+    thumbnail?: File | null
+  },
+): Promise<Record<string, unknown>> {
+  const formData = new FormData()
+  formData.append('title', payload.title)
+  formData.append('description', payload.description)
+  payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
+  payload.organizationIds.forEach((linkedOrganizationId) =>
+    formData.append('organization_ids', linkedOrganizationId),
+  )
+  if (payload.thumbnail) {
+    formData.append('thumbnail', payload.thumbnail)
+  }
+
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/organizations/${organizationId}/courses/`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+    token,
+  )
+  return parseJson<Record<string, unknown>>(response)
+}
+
+export async function updateOrganizationCourse(
+  token: string,
+  organizationId: string,
+  courseId: string,
+  payload: {
+    title: string
+    description: string
+    categoryIds: string[]
+    organizationIds: string[]
+    thumbnail?: File | null
+  },
+): Promise<Record<string, unknown>> {
+  const formData = new FormData()
+  formData.append('title', payload.title)
+  formData.append('description', payload.description)
+  payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
+  payload.organizationIds.forEach((linkedOrganizationId) =>
+    formData.append('organization_ids', linkedOrganizationId),
+  )
+  if (payload.thumbnail) {
+    formData.append('thumbnail', payload.thumbnail)
+  }
+
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/organizations/${organizationId}/courses/${courseId}/`,
+    {
+      method: 'PATCH',
+      body: formData,
+    },
+    token,
+  )
+  return parseJson<Record<string, unknown>>(response)
+}
+
+export async function deleteOrganizationCourse(
+  token: string,
+  organizationId: string,
+  courseId: string,
+): Promise<void> {
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/organizations/${organizationId}/courses/${courseId}/`,
+    {
+      method: 'DELETE',
+    },
+    token,
+  )
+
+  if (!response.ok) {
+    await parseJson<Record<string, unknown>>(response)
+  }
 }
 
 export async function fetchInvitation(token: string): Promise<InvitationDetail> {

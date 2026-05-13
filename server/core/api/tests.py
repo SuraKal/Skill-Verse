@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Invitation, InvitationStatus, Membership, Organization, OrganizationRole
+from .models import Course, CourseCategory, Invitation, InvitationStatus, Membership, Organization, OrganizationRole
 from .services.invitation_service import create_invitation
 
 User = get_user_model()
@@ -47,6 +47,10 @@ class PlatformFlowTests(APITestCase):
     def test_organization_dashboard_contains_members_and_invitations(self):
         organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
         Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
+        category = CourseCategory.objects.get(slug='engineering')
+        course = Course.objects.create(title='Platform Foundations', description='Core platform course')
+        course.categories.add(category)
+        course.organizations.add(organization)
         create_invitation(
             organization=organization,
             invited_by=self.user,
@@ -60,7 +64,61 @@ class PlatformFlowTests(APITestCase):
         self.assertEqual(response.data['organization']['name'], 'Orbit Labs')
         self.assertEqual(response.data['stats']['member_count'], 1)
         self.assertEqual(response.data['stats']['pending_invitation_count'], 1)
+        self.assertEqual(response.data['stats']['course_count'], 1)
         self.assertTrue(response.data['permissions']['can_manage_invitations'])
+        self.assertTrue(response.data['permissions']['can_manage_courses'])
+        self.assertEqual(response.data['courses'][0]['title'], 'Platform Foundations')
+
+    def test_organization_manager_can_create_course(self):
+        organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
+        Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
+        category = CourseCategory.objects.get(slug='operations')
+
+        response = self.client.post(
+            reverse('organization-courses', kwargs={'pk': organization.id}),
+            {
+                'title': 'Org Operations 101',
+                'description': 'Intro course for the team.',
+                'category_ids': [str(category.id)],
+                'organization_ids': [str(organization.id)],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Course.objects.filter(title='Org Operations 101', organizations=organization).exists())
+
+    def test_member_cannot_create_course(self):
+        organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
+        Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
+        member = User.objects.create_user(
+            username='member-user',
+            email='member-user@example.com',
+            password='StrongPassword123!',
+        )
+        Membership.objects.create(user=member, organization=organization, role=OrganizationRole.MEMBER)
+        category = CourseCategory.objects.get(slug='community')
+
+        token_response = self.client.post(
+            reverse('auth-token'),
+            {'email': member.email, 'password': 'StrongPassword123!'},
+            format='json',
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token_response.data['access']}")
+
+        response = self.client.post(
+            reverse('organization-courses', kwargs={'pk': organization.id}),
+            {
+                'title': 'Member Attempt',
+                'description': 'Should fail.',
+                'category_ids': [str(category.id)],
+                'organization_ids': [str(organization.id)],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Course.objects.filter(title='Member Attempt').exists())
 
     def test_invitation_acceptance_creates_membership(self):
         organization = Organization.objects.create(owner=self.user, name='Signal House')

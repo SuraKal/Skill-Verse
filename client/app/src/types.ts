@@ -46,9 +46,25 @@ export interface Organization {
 export interface CourseCategory {
   id: string
   name: string
+  slug: string
   is_active: boolean
 }
 
+export interface OrganizationOption {
+  id: string
+  name: string
+}
+
+export interface Course {
+  id: string
+  title: string
+  description: string
+  thumbnail: string | null
+  categories: CourseCategory[]
+  organizations: OrganizationOption[]
+  created_at: string
+  updated_at: string
+}
 
 export interface InvitationDetail {
   id?: string
@@ -101,15 +117,20 @@ export interface OrganizationDashboardData {
   organization: Organization
   members: MembershipRecord[]
   invitations: OrganizationInvitation[]
+  courses: Course[]
+  course_categories: CourseCategory[]
+  manageable_organizations: OrganizationOption[]
   permissions: {
     role: string
     can_manage_invitations: boolean
+    can_manage_courses: boolean
     can_manage_members: boolean
     can_manage_settings: boolean
   }
   stats: {
     member_count: number
     pending_invitation_count: number
+    course_count: number
     manager_count: number
   }
 }

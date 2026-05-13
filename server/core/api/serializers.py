@@ -104,6 +104,12 @@ class OrganizationSerializer(serializers.ModelSerializer):
         return membership.role if membership else None
 
 
+class OrganizationOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ['id', 'name']
+
+
 class CourseCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseCategory
@@ -130,7 +136,7 @@ class CourseSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    organizations = OrganizationSerializer(
+    organizations = OrganizationOptionSerializer(
         many=True,
         read_only=True,
     )
@@ -157,7 +163,6 @@ class CourseSerializer(serializers.ModelSerializer):
             'title',
             'description',
             'thumbnail',
-            'is_published',
 
             # Read
             'categories',
@@ -176,6 +181,55 @@ class CourseSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+    def validate_organizations(self, organizations):
+        request = self.context.get('request')
+        current_organization = self.context.get('organization')
+        if request is None or not request.user.is_authenticated:
+            return organizations
+
+        manageable_ids = set(
+            Membership.objects.filter(
+                user=request.user,
+                role__in=[OrganizationRole.CREATOR, OrganizationRole.MANAGER],
+            ).values_list('organization_id', flat=True)
+        )
+        requested_ids = {organization.id for organization in organizations}
+        if current_organization is not None:
+            requested_ids.add(current_organization.id)
+
+        unauthorized_ids = requested_ids - manageable_ids
+        if unauthorized_ids:
+            raise serializers.ValidationError(
+                'You can only assign courses to organizations you manage.'
+            )
+
+        resolved_organizations = list(organizations)
+        if current_organization is not None and current_organization not in resolved_organizations:
+            resolved_organizations.append(current_organization)
+        return resolved_organizations
+
+    def create(self, validated_data):
+        categories = validated_data.pop('categories', [])
+        organizations = validated_data.pop('organizations', [])
+        course = Course.objects.create(**validated_data)
+        course.categories.set(categories)
+        course.organizations.set(organizations)
+        return course
+
+    def update(self, instance, validated_data):
+        categories = validated_data.pop('categories', None)
+        organizations = validated_data.pop('organizations', None)
+
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.save()
+
+        if categories is not None:
+            instance.categories.set(categories)
+        if organizations is not None:
+            instance.organizations.set(organizations)
+        return instance
 
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -277,14 +331,21 @@ class OrganizationDashboardSerializer(serializers.Serializer):
     organization = OrganizationSerializer()
     members = MembershipSerializer(many=True)
     invitations = InvitationSerializer(many=True)
+    courses = CourseSerializer(many=True)
+    course_categories = CourseCategorySerializer(many=True)
+    manageable_organizations = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
     stats = serializers.SerializerMethodField()
+
+    def get_manageable_organizations(self, obj):
+        return OrganizationOptionSerializer(obj['manageable_organizations'], many=True).data
 
     def get_permissions(self, obj):
         role = obj['membership'].role
         return {
             'role': role,
             'can_manage_invitations': role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER},
+            'can_manage_courses': role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER},
             'can_manage_members': role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER},
             'can_manage_settings': role == OrganizationRole.CREATOR,
         }
@@ -292,11 +353,13 @@ class OrganizationDashboardSerializer(serializers.Serializer):
     def get_stats(self, obj):
         invitations = list(obj['invitations'])
         members = list(obj['members'])
+        courses = list(obj['courses'])
         return {
             'member_count': len(members),
             'pending_invitation_count': len(
                 [invitation for invitation in invitations if invitation.status == 'pending']
             ),
+            'course_count': len(courses),
             'manager_count': len(
                 [member for member in members if member.role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}]
             ),

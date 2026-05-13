@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Invitation, InvitationStatus, Membership, Organization
+from .models import Course, CourseCategory, Invitation, InvitationStatus, Membership, Organization, OrganizationRole
 from .permissions import (
     HasOrganizationManagementAccess,
     HasOrganizationReadAccess,
@@ -22,6 +22,7 @@ from .serializers import (
     InvitationRespondSerializer,
     InvitationSerializer,
     MembershipSerializer,
+    CourseSerializer,
     OrganizationDashboardSerializer,
     OrganizationCreateSerializer,
     OrganizationSerializer,
@@ -145,7 +146,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in {'list', 'create', 'switch'}:
             return [permissions.IsAuthenticated()]
-        if self.action in {'retrieve', 'dashboard'}:
+        if self.action in {'retrieve', 'dashboard', 'courses'}:
             return [permissions.IsAuthenticated(), HasOrganizationReadAccess()]
         return [permissions.IsAuthenticated(), HasOrganizationManagementAccess()]
 
@@ -180,11 +181,22 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         membership = Membership.objects.get(user=request.user, organization=organization)
         memberships = organization.memberships.select_related('user').order_by('role', 'user__first_name', 'user__email')
         invitations = organization.invitations.select_related('invited_by').order_by('-date_sent')
+        courses = (
+            organization.courses.prefetch_related('categories', 'organizations')
+            .order_by('title')
+        )
+        manageable_organizations = Organization.objects.filter(
+            memberships__user=request.user,
+            memberships__role__in=[OrganizationRole.CREATOR, OrganizationRole.MANAGER],
+        ).distinct().order_by('name')
         payload = {
             'organization': organization,
             'membership': membership,
             'members': memberships,
             'invitations': invitations,
+            'courses': courses,
+            'course_categories': CourseCategory.objects.filter(is_active=True).order_by('name'),
+            'manageable_organizations': manageable_organizations,
         }
         return Response(OrganizationDashboardSerializer(payload, context={'request': request}).data)
 
@@ -213,6 +225,63 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             frontend_url=settings.FRONTEND_URL,
         )
         return Response(InvitationSerializer(invitation).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get', 'post'])
+    def courses(self, request, pk=None):
+        organization = self.get_object()
+        membership = Membership.objects.get(user=request.user, organization=organization)
+
+        if request.method == 'GET':
+            courses = organization.courses.prefetch_related('categories', 'organizations').order_by('title')
+            return Response(CourseSerializer(courses, many=True, context={'request': request}).data)
+
+        if membership.role not in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}:
+            raise serializers.ValidationError(
+                'You do not have permission to manage courses for this organization.'
+            )
+
+        serializer = CourseSerializer(
+            data=request.data,
+            context={'request': request, 'organization': organization},
+        )
+        serializer.is_valid(raise_exception=True)
+        course = serializer.save()
+        return Response(
+            CourseSerializer(course, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'courses/(?P<course_id>[^/.]+)')
+    def course_detail(self, request, pk=None, course_id=None):
+        organization = self.get_object()
+        membership = Membership.objects.get(user=request.user, organization=organization)
+        if membership.role not in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}:
+            raise serializers.ValidationError(
+                'You do not have permission to manage courses for this organization.'
+            )
+
+        course = get_object_or_404(
+            Course.objects.prefetch_related('categories', 'organizations'),
+            id=course_id,
+            organizations=organization,
+        )
+
+        if request.method == 'DELETE':
+            course.organizations.remove(organization)
+            if not course.organizations.exists():
+                course.delete()
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        serializer = CourseSerializer(
+            course,
+            data=request.data,
+            partial=True,
+            context={'request': request, 'organization': organization},
+        )
+        serializer.is_valid(raise_exception=True)
+        course = serializer.save()
+        return Response(CourseSerializer(course, context={'request': request}).data)
 
 
 class InvitationDetailView(generics.RetrieveAPIView):

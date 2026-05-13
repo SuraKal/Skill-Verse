@@ -159,7 +159,7 @@ function App() {
       return
     }
 
-    fetchInvitation(invitationToken)
+    fetchInvitation(invitationToken, 'organization')
       .then(setInvitation)
       .catch(() => setErrorMessage('We could not load that invitation. It may have expired or already been used.'))
   }, [mode, invitationToken])

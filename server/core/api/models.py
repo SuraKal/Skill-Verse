@@ -83,6 +83,14 @@ class Course(TimeStampedModel):
 
     title = models.CharField(max_length=255)
 
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name='created_courses',
+        blank=True,
+        null=True,
+    )
+
     description = models.TextField(blank=True)
 
     thumbnail = models.ImageField(
@@ -108,6 +116,35 @@ class Course(TimeStampedModel):
 
     def __str__(self):
         return self.title
+
+
+class CourseInstructorAssignment(TimeStampedModel):
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='instructor_assignments',
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='course_instructor_assignments',
+    )
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name='course_instructors_added',
+        blank=True,
+        null=True,
+    )
+
+    class Meta:
+        ordering = ['user__first_name', 'user__email']
+        constraints = [
+            models.UniqueConstraint(fields=['course', 'user'], name='unique_course_instructor_assignment')
+        ]
+
+    def __str__(self):
+        return f'{self.user.get_username()} teaches {self.course.title}'
 
 
 class UserProfile(TimeStampedModel):
@@ -171,6 +208,51 @@ class Invitation(TimeStampedModel):
         if not self.expires_at:
             self.expires_at = timezone.now() + timedelta(days=settings.INVITATION_EXPIRY_DAYS)
         self.invited_email = self.invited_email.lower().strip()
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+
+class CourseInstructorInvitation(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='course_instructor_invitations',
+    )
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='instructor_invitations',
+    )
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='sent_course_instructor_invitations',
+    )
+    invited_email = models.EmailField()
+    custom_message = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=InvitationStatus.choices, default=InvitationStatus.PENDING)
+    token = models.CharField(max_length=96, unique=True, db_index=True, validators=[MinLengthValidator(24)])
+    date_sent = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    responded_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-date_sent']
+
+    def __str__(self):
+        return f'{self.invited_email} -> {self.course.title} ({self.status})'
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(days=settings.INVITATION_EXPIRY_DAYS)
+        self.invited_email = self.invited_email.lower().strip()
+        self.custom_message = self.custom_message.strip()
         super().save(*args, **kwargs)
 
     @property

@@ -1,12 +1,11 @@
-// pages/DashboardPage.tsx
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchDashboard } from '../lib/api'
-import type { DashboardData, Organization, InvitationDetail } from '../types'
-import { Avatar, initials, Icon } from '../components/DashboardLayout'
+
+import { acceptInvitation, fetchDashboard, rejectInvitation } from '../lib/api'
+import { Avatar, Icon, initials } from '../components/DashboardLayout'
+import type { DashboardData, InvitationDetail, Organization } from '../types'
 import '../styles/Dashboard.css'
 
-// ── Metric card ────────────────────────────────────────────────────────────
 function MetricCard({
   label,
   value,
@@ -28,9 +27,7 @@ function MetricCard({
       </div>
       <div className="sv-metric__value">{value}</div>
       {note && (
-        <div
-          className={`sv-metric__note${noteVariant !== 'neutral' ? ` sv-metric__note--${noteVariant}` : ''}`}
-        >
+        <div className={`sv-metric__note${noteVariant !== 'neutral' ? ` sv-metric__note--${noteVariant}` : ''}`}>
           {note}
         </div>
       )}
@@ -38,7 +35,6 @@ function MetricCard({
   )
 }
 
-// ── Org card ───────────────────────────────────────────────────────────────
 function OrgCard({
   org,
   role,
@@ -50,11 +46,7 @@ function OrgCard({
   isActive: boolean
   onClick: () => void
 }) {
-  const roleKey = (role ?? 'member').toLowerCase() as
-    | 'owner'
-    | 'manager'
-    | 'instructor'
-    | 'member'
+  const roleKey = (role ?? 'member').toLowerCase() as 'owner' | 'manager' | 'instructor' | 'member'
 
   return (
     <article
@@ -62,7 +54,7 @@ function OrgCard({
       onClick={onClick}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && onClick()}
+      onKeyDown={(event) => event.key === 'Enter' && onClick()}
       aria-label={`Open ${org.name} workspace`}
     >
       <div className="sv-org-card__header">
@@ -72,10 +64,9 @@ function OrgCard({
             {org.name}
             {org.is_verified && (
               <span className="sv-verified" title="Verified organization">
-                {' '}
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                  <circle cx="6" cy="6" r="5.5" fill="#0070f3"/>
-                  <path d="M3.5 6l2 2 3-3" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="6" cy="6" r="5.5" fill="#0070f3" />
+                  <path d="M3.5 6l2 2 3-3" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
             )}
@@ -95,7 +86,6 @@ function OrgCard({
   )
 }
 
-// ── Invitation card ─────────────────────────────────────────────────────────
 function InviteCard({
   inv,
   onAccept,
@@ -109,7 +99,7 @@ function InviteCard({
     month: 'short',
     day: 'numeric',
   })
-  const expired = inv.is_expired ?? new Date(inv.expires_at) < new Date()
+  const expired = new Date(inv.expires_at) < new Date()
 
   return (
     <div className="sv-invite-card">
@@ -117,26 +107,18 @@ function InviteCard({
         <Icon.Mail />
       </div>
       <div className="sv-invite-card__info">
-        <div className="sv-invite-card__org">{inv.organization_name}</div>
+        <div className="sv-invite-card__org">{inv.title}</div>
         <div className="sv-invite-card__meta">
-          {inv.role} · sent {sentDate}
+          {inv.subtitle} · sent {sentDate}
           {expired ? ' · expired' : ''}
         </div>
       </div>
       {!expired && inv.status === 'pending' && (
         <div className="sv-invite-card__actions">
-          <button
-            className="btn btn--ghost btn--sm"
-            onClick={() => onReject(inv)}
-            aria-label={`Decline invitation from ${inv.organization_name}`}
-          >
+          <button className="btn btn--ghost btn--sm" onClick={() => onReject(inv)} aria-label={`Decline invitation for ${inv.title}`}>
             Decline
           </button>
-          <button
-            className="btn btn--blue btn--sm"
-            onClick={() => onAccept(inv)}
-            aria-label={`Accept invitation from ${inv.organization_name}`}
-          >
+          <button className="btn btn--blue btn--sm" onClick={() => onAccept(inv)} aria-label={`Accept invitation for ${inv.title}`}>
             Accept
           </button>
         </div>
@@ -150,7 +132,6 @@ function InviteCard({
   )
 }
 
-// ── Membership row ─────────────────────────────────────────────────────────
 function MembershipRow({
   membership,
 }: {
@@ -162,29 +143,19 @@ function MembershipRow({
     <tr>
       <td>
         <div className="sv-table__user">
-          <div
-            className="sv-org-card__icon"
-            style={{ width: 28, height: 28, borderRadius: 6, fontSize: 11 }}
-          >
+          <div className="sv-org-card__icon" style={{ width: 28, height: 28, borderRadius: 6, fontSize: 11 }}>
             {initials(membership.organization_name)}
           </div>
           <span className="sv-table__user-name">{membership.organization_name}</span>
         </div>
       </td>
       <td>
-        <span
-          className={`sv-role-badge sv-role-badge--${membership.role.toLowerCase()}`}
-        >
+        <span className={`sv-role-badge sv-role-badge--${membership.role.toLowerCase()}`}>
           {membership.role}
         </span>
       </td>
       <td>
-        <button
-          className="btn btn--ghost btn--sm"
-          onClick={() =>
-            navigate(`/dashboard/organizations/${membership.organization_id}`)
-          }
-        >
+        <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/dashboard/organizations/${membership.organization_id}`)}>
           Open
         </button>
       </td>
@@ -192,7 +163,6 @@ function MembershipRow({
   )
 }
 
-// ── Skeleton loader ─────────────────────────────────────────────────────────
 function DashboardSkeleton() {
   return (
     <div>
@@ -201,8 +171,8 @@ function DashboardSkeleton() {
         <div className="sv-skeleton" style={{ width: 160, height: 14 }} />
       </div>
       <div className="sv-metrics">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="sv-metric">
+        {[1, 2, 3].map((item) => (
+          <div key={item} className="sv-metric">
             <div className="sv-skeleton" style={{ height: 56 }} />
           </div>
         ))}
@@ -211,29 +181,33 @@ function DashboardSkeleton() {
   )
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
 export function DashboardPage({ token }: { token: string }) {
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadDashboard = () => {
+    setLoading(true)
+    setError(null)
     fetchDashboard(token)
       .then(setData)
-      .catch((e: Error) => setError(e.message))
+      .catch((loadError: Error) => setError(loadError.message))
       .finally(() => setLoading(false))
-  }, [token])
+  }
+
+  useEffect(loadDashboard, [token])
 
   if (loading) return <DashboardSkeleton />
-  if (error)
+  if (error) {
     return (
       <div className="sv-empty">
-        <div className="sv-empty__icon" aria-hidden>⚠</div>
+        <div className="sv-empty__icon" aria-hidden>!</div>
         <div className="sv-empty__title">Failed to load dashboard</div>
         <div className="sv-empty__sub">{error}</div>
       </div>
     )
+  }
   if (!data) return null
 
   const { user, organizations, memberships, pending_invitations, stats } = data
@@ -241,28 +215,16 @@ export function DashboardPage({ token }: { token: string }) {
 
   return (
     <>
-      {/* Page header */}
       <div className="sv-page-header">
-        <h1 className="sv-page-header__title">Welcome back, {firstName} 👋</h1>
+        <h1 className="sv-page-header__title">Welcome back, {firstName}</h1>
         <p className="sv-page-header__sub">
-          Here's what's happening across your organizations.
+          Here&apos;s what&apos;s happening across your organizations.
         </p>
       </div>
 
-      {/* Metrics */}
       <div className="sv-metrics">
-        <MetricCard
-          label="Organizations"
-          value={stats.organization_count}
-          note="You belong to"
-          icon={<Icon.Building />}
-        />
-        <MetricCard
-          label="Managed"
-          value={stats.managed_organization_count}
-          note="You can manage"
-          icon={<Icon.Chart />}
-        />
+        <MetricCard label="Organizations" value={stats.organization_count} note="You belong to" icon={<Icon.Building />} />
+        <MetricCard label="Managed" value={stats.managed_organization_count} note="You can manage" icon={<Icon.Chart />} />
         <MetricCard
           label="Invitations"
           value={stats.pending_invitation_count}
@@ -272,28 +234,19 @@ export function DashboardPage({ token }: { token: string }) {
         />
       </div>
 
-      {/* Profile snapshot + invitations */}
       <div className="sv-grid-2" style={{ marginBottom: 12 }}>
-        {/* Profile card */}
         <div className="sv-panel">
           <div className="sv-panel__head">
             <span className="sv-panel__title">Your profile</span>
-            <button
-              className="sv-panel__action"
-              onClick={() => navigate('/dashboard/settings')}
-            >
+            <button className="sv-panel__action" onClick={() => navigate('/dashboard/settings')}>
               Edit
             </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
             <Avatar name={user.full_name || user.username} size="lg" />
             <div>
-              <div style={{ fontWeight: 600, fontSize: 15, letterSpacing: '-0.01em' }}>
-                {user.full_name}
-              </div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 2 }}>
-                {user.email}
-              </div>
+              <div style={{ fontWeight: 600, fontSize: 15, letterSpacing: '-0.01em' }}>{user.full_name}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 2 }}>{user.email}</div>
               {user.profile?.title && (
                 <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 3 }}>
                   {user.profile.title}
@@ -308,54 +261,43 @@ export function DashboardPage({ token }: { token: string }) {
             </p>
           )}
           {user.profile?.location && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                marginTop: 10,
-                fontSize: 12.5,
-                color: 'var(--text-tertiary)',
-              }}
-            >
-              📍 {user.profile.location}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 12.5, color: 'var(--text-tertiary)' }}>
+              {user.profile.location}
             </div>
           )}
         </div>
 
-        {/* Pending invitations */}
         <div className="sv-panel">
           <div className="sv-panel__head">
             <span className="sv-panel__title">Pending invitations</span>
             {pending_invitations.length > 0 && (
-              <span
-                style={{
-                  background: 'rgba(245,165,36,0.12)',
-                  color: 'var(--accent-amber)',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: 99,
-                }}
-              >
+              <span style={{ background: 'rgba(245,165,36,0.12)', color: 'var(--accent-amber)', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
                 {pending_invitations.length}
               </span>
             )}
           </div>
           {pending_invitations.length === 0 ? (
             <div className="sv-empty" style={{ padding: '24px 0' }}>
-              <div className="sv-empty__icon" aria-hidden>📭</div>
+              <div className="sv-empty__icon" aria-hidden><Icon.Mail /></div>
               <div className="sv-empty__title">No pending invitations</div>
-              <div className="sv-empty__sub">You're all caught up.</div>
+              <div className="sv-empty__sub">You&apos;re all caught up.</div>
             </div>
           ) : (
             <div className="sv-invite-list">
-              {pending_invitations.map((inv) => (
+              {pending_invitations.map((invitation) => (
                 <InviteCard
-                  key={inv.id ?? `${inv.organization_name}-${inv.date_sent}`}
-                  inv={inv}
-                  onAccept={() => {/* wire to acceptInvitation */}}
-                  onReject={() => {/* wire to rejectInvitation */}}
+                  key={invitation.id}
+                  inv={invitation}
+                  onAccept={(nextInvitation) => {
+                    void acceptInvitation(token, nextInvitation.token, nextInvitation.invitation_type)
+                      .then(loadDashboard)
+                      .catch((actionError: Error) => setError(actionError.message))
+                  }}
+                  onReject={(nextInvitation) => {
+                    void rejectInvitation(nextInvitation.token, nextInvitation.invitation_type)
+                      .then(loadDashboard)
+                      .catch((actionError: Error) => setError(actionError.message))
+                  }}
                 />
               ))}
             </div>
@@ -363,14 +305,10 @@ export function DashboardPage({ token }: { token: string }) {
         </div>
       </div>
 
-      {/* Organizations */}
       <div className="sv-panel" style={{ marginBottom: 12 }}>
         <div className="sv-panel__head">
           <span className="sv-panel__title">Your organizations</span>
-          <button
-            className="sv-panel__action"
-            onClick={() => navigate('/dashboard/organizations')}
-          >
+          <button className="sv-panel__action" onClick={() => navigate('/dashboard/organizations')}>
             View all
           </button>
         </div>
@@ -379,20 +317,11 @@ export function DashboardPage({ token }: { token: string }) {
             <div className="sv-empty__icon" aria-hidden><Icon.Building /></div>
             <div className="sv-empty__title">No organizations yet</div>
             <div className="sv-empty__sub">Create or join one to get started.</div>
-            <button
-              className="btn btn--ghost btn--sm"
-              onClick={() => navigate('/dashboard/organizations/new')}
-              style={{ marginTop: 10 }}
-            >
-              + Create organization
-            </button>
           </div>
         ) : (
           <div className="sv-org-cards">
             {organizations.slice(0, 6).map((org) => {
-              const membership = memberships.find(
-                (m) => m.organization_id === org.id,
-              )
+              const membership = memberships.find((item) => item.organization_id === org.id)
               return (
                 <OrgCard
                   key={org.id}
@@ -407,14 +336,11 @@ export function DashboardPage({ token }: { token: string }) {
         )}
       </div>
 
-      {/* Memberships table */}
       {memberships.length > 0 && (
         <div className="sv-panel">
           <div className="sv-panel__head">
             <span className="sv-panel__title">All memberships</span>
-            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-              {memberships.length} total
-            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{memberships.length} total</span>
           </div>
           <div className="sv-table-wrap">
             <table className="sv-table" aria-label="Your memberships">
@@ -426,8 +352,8 @@ export function DashboardPage({ token }: { token: string }) {
                 </tr>
               </thead>
               <tbody>
-                {memberships.map((m) => (
-                  <MembershipRow key={m.organization_id} membership={m} />
+                {memberships.map((membership) => (
+                  <MembershipRow key={membership.organization_id} membership={membership} />
                 ))}
               </tbody>
             </table>

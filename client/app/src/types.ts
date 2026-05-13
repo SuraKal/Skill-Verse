@@ -58,24 +58,37 @@ export interface OrganizationOption {
 export interface Course {
   id: string
   title: string
+  created_by: User | null
   description: string
   thumbnail: string | null
   categories: CourseCategory[]
   organizations: OrganizationOption[]
+  can_manage: boolean
+  is_created_by_me: boolean
+  is_instructor: boolean
+  is_enrolled: boolean
+  is_member_course: boolean
+  instructor_count: number
   created_at: string
   updated_at: string
 }
 
 export interface InvitationDetail {
-  id?: string
-  organization_id?: string
-  organization_name: string
+  id: string
+  token: string
+  invitation_type: 'organization' | 'course_instructor'
+  title: string
+  subtitle: string
   invited_email: string
   role: string
   status: string
   date_sent: string
   expires_at: string
-  is_expired?: boolean
+  organization_id: string
+  organization_name: string
+  course_id: string
+  course_title: string
+  custom_message: string
 }
 
 export interface DashboardData {
@@ -104,9 +117,31 @@ export interface MembershipRecord {
 
 export interface OrganizationInvitation {
   id: string
+  token: string
   organization_id: string
   invited_email: string
   role: string
+  status: string
+  date_sent: string
+  expires_at: string
+  invited_by: User
+}
+
+export interface CourseInstructorAssignment {
+  id: string
+  created_at: string
+  user: User
+}
+
+export interface CourseInstructorInvitation {
+  id: string
+  token: string
+  organization_id: string
+  organization_name: string
+  course_id: string
+  course_title: string
+  invited_email: string
+  custom_message: string
   status: string
   date_sent: string
   expires_at: string
@@ -132,6 +167,41 @@ export interface OrganizationDashboardData {
     pending_invitation_count: number
     course_count: number
     manager_count: number
+  }
+}
+
+export interface CourseManagementData {
+  course: Course
+  instructors: CourseInstructorAssignment[]
+  instructor_invitations: CourseInstructorInvitation[]
+  manageable_organizations: OrganizationOption[]
+  permissions: {
+    role: string
+    can_invite_instructors: boolean
+    can_manage_course: boolean
+  }
+  stats: {
+    instructor_count: number
+    pending_instructor_invitation_count: number
+  }
+}
+
+export interface CourseWorkspaceData {
+  courses: Course[]
+  course_categories: CourseCategory[]
+  manageable_organizations: OrganizationOption[]
+  stats: {
+    visible_course_count: number
+    created_course_count: number
+    teaching_course_count: number
+    enrolled_course_count: number
+    manageable_course_count: number
+  }
+  filters: {
+    all: number
+    created: number
+    teaching: number
+    enrolled: number
   }
 }
 

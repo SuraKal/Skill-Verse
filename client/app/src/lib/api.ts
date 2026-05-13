@@ -1,5 +1,7 @@
 // Api.ts    
 import type {
+  CourseManagementData,
+  CourseWorkspaceData,
   DashboardData,
   InvitationDetail,
   LoginPayload,
@@ -18,12 +20,6 @@ const jsonHeaders = (token?: string) => ({
   'Content-Type': 'application/json',
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
 })
-
-function withAuthorization(token: string, headers?: HeadersInit): Headers {
-  const nextHeaders = new Headers(headers)
-  nextHeaders.set('Authorization', `Bearer ${token}`)
-  return nextHeaders
-}
 
 function notifyAuthSession(accessToken: string | null) {
   window.dispatchEvent(
@@ -72,25 +68,53 @@ async function refreshAccessToken(): Promise<string | null> {
   return payload.access
 }
 
-async function authorizedFetch(input: string, init: RequestInit, token: string): Promise<Response> {
-  const response = await fetch(input, {
-    ...init,
-    headers: withAuthorization(token, init.headers),
-  })
+async function authorizedFetch(
+  input: string,
+  init: RequestInit = {},
+  token: string,
+): Promise<Response> {
+  const buildHeaders = (accessToken: string) => {
+    const headers = new Headers(init.headers || {});
 
+    // Always ensure JSON content type if body exists and not FormData
+    const isFormData = init.body instanceof FormData;
+
+    if (!isFormData && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    if (accessToken) {
+      headers.set("Authorization", `Bearer ${accessToken}`);
+    }
+
+    return headers;
+  };
+
+  // First request
+  let response = await fetch(input, {
+    ...init,
+    headers: buildHeaders(token),
+  });
+
+  // If not unauthorized, return immediately
   if (response.status !== 401) {
-    return response
+    return response;
   }
 
-  const nextAccessToken = await refreshAccessToken()
+  // Try refresh token
+  const nextAccessToken = await refreshAccessToken();
+
   if (!nextAccessToken) {
-    return response
+    return response;
   }
 
-  return fetch(input, {
+  // Retry request with new token
+  response = await fetch(input, {
     ...init,
-    headers: withAuthorization(nextAccessToken, init.headers),
-  })
+    headers: buildHeaders(nextAccessToken),
+  });
+
+  return response;
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -159,6 +183,23 @@ export async function fetchOrganizationDashboard(
   return parseJson<OrganizationDashboardData>(response)
 }
 
+export async function fetchCourseManagement(
+  token: string,
+  courseId: string,
+): Promise<CourseManagementData> {
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/courses/${courseId}/management/`,
+    {},
+    token,
+  )
+  return parseJson<CourseManagementData>(response)
+}
+
+export async function fetchCourseWorkspace(token: string): Promise<CourseWorkspaceData> {
+  const response = await authorizedFetch(`${API_BASE_URL}/courses/`, {}, token)
+  return parseJson<CourseWorkspaceData>(response)
+}
+
 export async function updateProfile(token: string, payload: UserProfileUpdatePayload): Promise<User> {
   const response = await authorizedFetch(`${API_BASE_URL}/auth/me/`, {
     method: 'PATCH',
@@ -198,6 +239,96 @@ export async function sendOrganizationInvitation(
     body: JSON.stringify(payload),
   }, token)
   return parseJson<Record<string, unknown>>(response)
+}
+
+export async function sendCourseInstructorInvitation(
+  token: string,
+  courseId: string,
+  payload: { invited_email: string; custom_message: string; organization_id: string },
+): Promise<Record<string, unknown>> {
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/courses/${courseId}/instructor-invitations/`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  )
+  return parseJson<Record<string, unknown>>(response)
+}
+
+export async function createCourse(
+  token: string,
+  payload: {
+    title: string
+    description: string
+    categoryIds: string[]
+    organizationIds: string[]
+    thumbnail?: File | null
+  },
+): Promise<Record<string, unknown>> {
+  const formData = new FormData()
+  formData.append('title', payload.title)
+  formData.append('description', payload.description)
+  payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
+  payload.organizationIds.forEach((organizationId) => formData.append('organization_ids', organizationId))
+  if (payload.thumbnail) {
+    formData.append('thumbnail', payload.thumbnail)
+  }
+
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/courses/`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+    token,
+  )
+  return parseJson<Record<string, unknown>>(response)
+}
+
+export async function updateCourse(
+  token: string,
+  courseId: string,
+  payload: {
+    title: string
+    description: string
+    categoryIds: string[]
+    organizationIds: string[]
+    thumbnail?: File | null
+  },
+): Promise<Record<string, unknown>> {
+  const formData = new FormData()
+  formData.append('title', payload.title)
+  formData.append('description', payload.description)
+  payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
+  payload.organizationIds.forEach((organizationId) => formData.append('organization_ids', organizationId))
+  if (payload.thumbnail) {
+    formData.append('thumbnail', payload.thumbnail)
+  }
+
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/courses/${courseId}/`,
+    {
+      method: 'PATCH',
+      body: formData,
+    },
+    token,
+  )
+  return parseJson<Record<string, unknown>>(response)
+}
+
+export async function deleteCourse(token: string, courseId: string): Promise<void> {
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/courses/${courseId}/`,
+    {
+      method: 'DELETE',
+    },
+    token,
+  )
+  if (!response.ok) {
+    await parseJson<Record<string, unknown>>(response)
+  }
 }
 
 export async function createOrganizationCourse(
@@ -285,24 +416,43 @@ export async function deleteOrganizationCourse(
   }
 }
 
-export async function fetchInvitation(token: string): Promise<InvitationDetail> {
-  const response = await fetch(`${API_BASE_URL}/invitations/${token}/`)
+export async function fetchInvitation(
+  token: string,
+  invitationType: 'organization' | 'course_instructor',
+): Promise<InvitationDetail> {
+  const path =
+    invitationType === 'course_instructor'
+      ? `${API_BASE_URL}/course-invitations/${token}/`
+      : `${API_BASE_URL}/invitations/${token}/`
+  const response = await fetch(path)
   return parseJson<InvitationDetail>(response)
 }
 
 export async function acceptInvitation(
   accessToken: string,
   invitationToken: string,
+  invitationType: 'organization' | 'course_instructor' = 'organization',
 ): Promise<Record<string, unknown>> {
-  const response = await authorizedFetch(`${API_BASE_URL}/invitations/${invitationToken}/accept/`, {
+  const path =
+    invitationType === 'course_instructor'
+      ? `${API_BASE_URL}/course-invitations/${invitationToken}/accept/`
+      : `${API_BASE_URL}/invitations/${invitationToken}/accept/`
+  const response = await authorizedFetch(path, {
     method: 'POST',
     body: JSON.stringify({}),
   }, accessToken)
   return parseJson<Record<string, unknown>>(response)
 }
 
-export async function rejectInvitation(invitationToken: string): Promise<Record<string, unknown>> {
-  const response = await fetch(`${API_BASE_URL}/invitations/${invitationToken}/reject/`, {
+export async function rejectInvitation(
+  invitationToken: string,
+  invitationType: 'organization' | 'course_instructor' = 'organization',
+): Promise<Record<string, unknown>> {
+  const path =
+    invitationType === 'course_instructor'
+      ? `${API_BASE_URL}/course-invitations/${invitationToken}/reject/`
+      : `${API_BASE_URL}/invitations/${invitationToken}/reject/`
+  const response = await fetch(path, {
     method: 'POST',
     headers: jsonHeaders(),
     body: JSON.stringify({}),

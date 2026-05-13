@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   createOrganizationCourse,
   deleteOrganizationCourse,
@@ -492,11 +492,13 @@ function CourseCard({
   canManage,
   onEdit,
   onDelete,
+  onOpen,
 }: {
   course: Course
   canManage: boolean
   onEdit: (course: Course) => void
   onDelete: (course: Course) => void
+  onOpen: (course: Course) => void
 }) {
   return (
     <article className="sv-course-card">
@@ -517,16 +519,21 @@ function CourseCard({
               Updated {new Date(course.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
             </div>
           </div>
-          {canManage && (
-            <div className="sv-course-card__actions">
+          <div className="sv-course-card__actions">
+            <button className="btn btn--ghost btn--sm" type="button" onClick={() => onOpen(course)}>
+              Details
+            </button>
+            {canManage && (
               <button className="btn btn--ghost btn--sm" type="button" onClick={() => onEdit(course)}>
                 Edit
               </button>
+            )}
+            {canManage && (
               <button className="btn btn--ghost btn--sm" type="button" onClick={() => onDelete(course)}>
                 Remove
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <p className="sv-course-card__description">{course.description || 'No description added yet.'}</p>
         <div className="sv-tag-group">
@@ -549,6 +556,7 @@ function CourseCard({
 }
 
 export function OrgDashboardPage({ token }: { token: string }) {
+  const navigate = useNavigate()
   const { organizationId } = useParams<{ organizationId: string }>()
   const [data, setData] = useState<OrganizationDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -716,6 +724,7 @@ export function OrgDashboardPage({ token }: { token: string }) {
                     key={course.id}
                     course={course}
                     canManage={canManageCourses}
+                    onOpen={(nextCourse) => navigate(`/dashboard/courses/${nextCourse.id}`)}
                     onEdit={(nextCourse) => setEditingCourse(nextCourse)}
                     onDelete={handleDeleteCourse}
                   />

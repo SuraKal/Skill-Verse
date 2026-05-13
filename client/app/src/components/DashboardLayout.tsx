@@ -231,7 +231,15 @@ function Sidebar({
           label="Members"
         />
 
+        <span className="sv-sidebar__section-label">Learning</span>
 
+        <NavItem
+          to="/dashboard/courses"
+          icon={<Icon.Chart />}
+          label="Courses"
+        />
+
+        
         <span className="sv-sidebar__section-label">Account</span>
         <NavItem
           to="/dashboard/settings"

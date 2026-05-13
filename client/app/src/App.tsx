@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DashboardLayout } from './components/DashboardLayout'
 import { fetchDashboard, subscribeToAuthSessionChanges } from './lib/api'
 import { AuthPage } from './pages/AuthPage'
+import { CourseDetailPage } from './pages/CourseDetailPage'
+import { CoursesPage } from './pages/CoursesPage'
 import {
   AnalyticsPage,
   InvitationsPage,
@@ -13,6 +15,7 @@ import {
   SettingsPage,
 } from './pages/DashboardSections'
 import { DashboardPage } from './pages/DashboardPage'
+import { InvitationLandingPage } from './pages/InvitationLandingPage'
 import { LandingPage } from './pages/LandingPage'
 import { OrgDashboardPage } from './pages/OrgDashboardPage'
 import type { DashboardData, LoginResponse } from './types'
@@ -32,6 +35,20 @@ function RequireAuth({
 }
 
 function getDashboardChrome(pathname: string) {
+  if (pathname.startsWith('/dashboard/courses/')) {
+    return {
+      title: 'Course',
+      breadcrumb: 'Learning / Course management',
+    }
+  }
+
+  if (pathname.startsWith('/dashboard/courses')) {
+    return {
+      title: 'Courses',
+      breadcrumb: 'Learning / Course workspace',
+    }
+  }
+
   if (pathname.startsWith('/dashboard/organizations/')) {
     return {
       title: 'Organization',
@@ -201,6 +218,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/organizations" element={<OrganizationsShowcasePage />} />
+        <Route path="/invite/:invitationType/:token" element={<InvitationLandingPage token={token} />} />
         <Route
           path="/login"
           element={
@@ -241,6 +259,14 @@ export default function App() {
           <Route
             path="organizations/:organizationId"
             element={token ? <OrgDashboardPage token={token} /> : null}
+          />
+          <Route
+            path="courses"
+            element={token ? <CoursesPage token={token} /> : null}
+          />
+          <Route
+            path="courses/:courseId"
+            element={token ? <CourseDetailPage token={token} /> : null}
           />
           <Route
             path="invitations"

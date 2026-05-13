@@ -4,6 +4,10 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
     AuthRoutesView,
+    CourseViewSet,
+    CourseInstructorInvitationAcceptView,
+    CourseInstructorInvitationDetailView,
+    CourseInstructorInvitationRejectView,
     DashboardView,
     InvitationAcceptView,
     InvitationDetailView,
@@ -16,6 +20,7 @@ from .views import (
 )
 
 router = DefaultRouter()
+router.register('courses', CourseViewSet, basename='course')
 router.register('organizations', OrganizationViewSet, basename='organization')
 
 urlpatterns = [
@@ -29,5 +34,20 @@ urlpatterns = [
     path('invitations/<str:token>/', InvitationDetailView.as_view(), name='invitation-detail'),
     path('invitations/<str:token>/accept/', InvitationAcceptView.as_view(), name='invitation-accept'),
     path('invitations/<str:token>/reject/', InvitationRejectView.as_view(), name='invitation-reject'),
+    path(
+        'course-invitations/<str:token>/',
+        CourseInstructorInvitationDetailView.as_view(),
+        name='course-invitation-detail',
+    ),
+    path(
+        'course-invitations/<str:token>/accept/',
+        CourseInstructorInvitationAcceptView.as_view(),
+        name='course-invitation-accept',
+    ),
+    path(
+        'course-invitations/<str:token>/reject/',
+        CourseInstructorInvitationRejectView.as_view(),
+        name='course-invitation-reject',
+    ),
     path('', include(router.urls)),
 ]

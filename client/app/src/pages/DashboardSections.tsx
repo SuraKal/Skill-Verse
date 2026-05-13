@@ -501,9 +501,9 @@ export function InvitationsPage({
 
     try {
       if (action === 'accept') {
-        await acceptInvitation(token, invitation.id)
+        await acceptInvitation(token, invitation.token, invitation.invitation_type)
       } else {
-        await rejectInvitation(invitation.id)
+        await rejectInvitation(invitation.token, invitation.invitation_type)
       }
 
       load()
@@ -563,9 +563,9 @@ export function InvitationsPage({
                   <Icon.Mail />
                 </div>
                 <div className="sv-invite-card__info">
-                  <div className="sv-invite-card__org">{invitation.organization_name}</div>
+                  <div className="sv-invite-card__org">{invitation.title}</div>
                   <div className="sv-invite-card__meta">
-                    {invitation.role} role · expires{' '}
+                    {invitation.subtitle} · expires{' '}
                     {new Date(invitation.expires_at).toLocaleDateString()}
                   </div>
                 </div>

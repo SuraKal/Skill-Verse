@@ -49,6 +49,67 @@ class Organization(TimeStampedModel):
         return self.name
 
 
+class CourseCategory(TimeStampedModel):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    name = models.CharField(
+        max_length=180,
+        unique=True,
+    )
+
+    slug = models.SlugField(
+        unique=True,
+    )
+
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class Course(TimeStampedModel):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    title = models.CharField(max_length=255)
+
+    description = models.TextField(blank=True)
+
+    thumbnail = models.ImageField(
+        upload_to='course_thumbnails/',
+        blank=True,
+        null=True,
+    )
+
+    categories = models.ManyToManyField(
+        CourseCategory,
+        related_name='courses',
+        blank=True,
+    )
+
+    organizations = models.ManyToManyField(
+        Organization,
+        related_name='courses',
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ['title']
+
+    def __str__(self):
+        return self.title
+
+
 class UserProfile(TimeStampedModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     title = models.CharField(max_length=120, blank=True)

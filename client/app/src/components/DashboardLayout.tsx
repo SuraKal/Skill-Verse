@@ -261,11 +261,11 @@ function Sidebar({
                 <Icon.Dots />
               </span>
             </div>
-            <button className="sv-sidebar__signout" onClick={onSignOut}>
-              Sign out
-            </button>
           </>
         )}
+        <button className="sv-sidebar__signout" onClick={onSignOut}>
+          Sign out
+        </button>
       </div>
     </aside>
   );

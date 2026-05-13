@@ -2,7 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { DashboardLayout } from './components/DashboardLayout'
-import { fetchDashboard } from './lib/api'
+import { fetchDashboard, subscribeToAuthSessionChanges } from './lib/api'
 import { AuthPage } from './pages/AuthPage'
 import {
   AnalyticsPage,
@@ -111,6 +111,44 @@ export default function App() {
     localStorage.getItem('access_token'),
   )
   const [dashData, setDashData] = useState<DashboardData | null>(null)
+
+  useEffect(() => {
+    return subscribeToAuthSessionChanges((nextAccessToken) => {
+      setToken(nextAccessToken)
+
+      if (!nextAccessToken) {
+        setSession(null)
+        setDashData(null)
+        return
+      }
+
+      setSession((currentSession) => {
+        if (!currentSession) {
+          const rawUser = localStorage.getItem('session_user')
+          if (!rawUser) {
+            return null
+          }
+
+          try {
+            return {
+              access: nextAccessToken,
+              refresh: localStorage.getItem('refresh_token') ?? '',
+              user: JSON.parse(rawUser) as LoginResponse['user'],
+            }
+          } catch {
+            localStorage.removeItem('session_user')
+            return null
+          }
+        }
+
+        return {
+          ...currentSession,
+          access: nextAccessToken,
+          refresh: localStorage.getItem('refresh_token') ?? currentSession.refresh,
+        }
+      })
+    })
+  }, [])
 
   useEffect(() => {
     const rawUser = localStorage.getItem('session_user')

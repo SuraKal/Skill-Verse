@@ -1,4 +1,5 @@
 // Types.ts
+// This file helps the frontend maintain type safety when interacting with the backend API and managing application state.
 export type ModuleStatus = 'live' | 'planned'
 
 export interface PlatformModule {
@@ -41,6 +42,13 @@ export interface Organization {
   member_count?: number
   membership_role: string | null
 }
+
+export interface CourseCategory {
+  id: string
+  name: string
+  is_active: boolean
+}
+
 
 export interface InvitationDetail {
   id?: string

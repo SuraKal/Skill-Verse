@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from .models import Invitation, Membership, Organization, OrganizationRole, UserProfile
+from .models import Course, CourseCategory, Invitation, Membership, Organization, OrganizationRole, UserProfile
 
 User = get_user_model()
 
@@ -103,6 +103,79 @@ class OrganizationSerializer(serializers.ModelSerializer):
         membership = Membership.objects.filter(user=request.user, organization=obj).only('role').first()
         return membership.role if membership else None
 
+
+class CourseCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseCategory
+
+        fields = [
+            'id',
+            'name',
+            'slug',
+            'is_active',
+            'created_at',
+            'updated_at',
+        ]
+
+        read_only_fields = [
+            'id',
+            'created_at',
+            'updated_at',
+        ]
+
+
+class CourseSerializer(serializers.ModelSerializer):
+    categories = CourseCategorySerializer(
+        many=True,
+        read_only=True,
+    )
+
+    organizations = OrganizationSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    category_ids = serializers.PrimaryKeyRelatedField(
+        queryset=CourseCategory.objects.filter(is_active=True),
+        many=True,
+        write_only=True,
+        source='categories',
+    )
+
+    organization_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.filter(is_verified=True),
+        many=True,
+        write_only=True,
+        source='organizations',
+    )
+
+    class Meta:
+        model = Course
+
+        fields = [
+            'id',
+            'title',
+            'description',
+            'thumbnail',
+            'is_published',
+
+            # Read
+            'categories',
+            'organizations',
+
+            # Write
+            'category_ids',
+            'organization_ids',
+
+            'created_at',
+            'updated_at',
+        ]
+
+        read_only_fields = [
+            'id',
+            'created_at',
+            'updated_at',
+        ]
 
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     class Meta:

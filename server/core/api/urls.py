@@ -34,9 +34,12 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='auth-token-refresh'),
     path('auth/me/', MeView.as_view(), name='auth-me'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
-    path('invitations/<str:token>/', InvitationDetailView.as_view(), name='invitation-detail'),
-    path('invitations/<str:token>/accept/', InvitationAcceptView.as_view(), name='invitation-accept'),
-    path('invitations/<str:token>/reject/', InvitationRejectView.as_view(), name='invitation-reject'),
+    path('invitations/<str:token>/',
+         InvitationDetailView.as_view(), name='invitation-detail'),
+    path('invitations/<str:token>/accept/',
+         InvitationAcceptView.as_view(), name='invitation-accept'),
+    path('invitations/<str:token>/reject/',
+         InvitationRejectView.as_view(), name='invitation-reject'),
     path(
         'course-invitations/<str:token>/',
         CourseInstructorInvitationDetailView.as_view(),
@@ -52,21 +55,20 @@ urlpatterns = [
         CourseInstructorInvitationRejectView.as_view(),
         name='course-invitation-reject',
     ),
-    
     path(
-        'course-invitations/<str:token>/',
+        'course-enrollment-invitations/<str:token>/',
         CourseEnrollmentInvitationDetailView.as_view(),
-        name='course-invitation-detail',
+        name='course-enrollment-invitation-detail',
     ),
     path(
-        'course-invitations/<str:token>/accept/',
+        'course-enrollment-invitations/<str:token>/accept/',
         CourseEnrollmentInvitationAcceptView.as_view(),
-        name='course-invitation-accept',
+        name='course-enrollment-invitation-accept',
     ),
     path(
-        'course-invitations/<str:token>/reject/',
+        'course-enrollment-invitations/<str:token>/reject/',
         CourseEnrollmentInvitationRejectView.as_view(),
-        name='course-invitation-reject',
+        name='course-enrollment-invitation-reject',
     ),
     path('', include(router.urls)),
 ]

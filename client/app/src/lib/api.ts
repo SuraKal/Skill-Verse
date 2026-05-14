@@ -441,47 +441,64 @@ export async function deleteOrganizationCourse(
 
 export async function fetchInvitation(
   token: string,
-  invitationType: 'organization' | 'course_instructor',
+  invitationType: "organization" | "course_instructor" | "course_enrollment",
 ): Promise<InvitationDetail> {
   const path =
-    invitationType === 'course_instructor'
+    invitationType === "course_instructor"
       ? `${API_BASE_URL}/course-invitations/${token}/`
-      : `${API_BASE_URL}/invitations/${token}/`
-  const response = await fetch(path)
-  return parseJson<InvitationDetail>(response)
+      : invitationType === "course_enrollment"
+        ? `${API_BASE_URL}/course-enrollment-invitations/${token}/`
+        : `${API_BASE_URL}/invitations/${token}/`;
+  const response = await fetch(path);
+  return parseJson<InvitationDetail>(response);
 }
 
 export async function acceptInvitation(
   accessToken: string,
   invitationToken: string,
-  invitationType: 'organization' | 'course_instructor' = 'organization',
+  invitationType:
+    | "organization"
+    | "course_instructor"
+    | "course_enrollment" = "organization",
 ): Promise<Record<string, unknown>> {
   const path =
-    invitationType === 'course_instructor'
+    invitationType === "course_instructor"
       ? `${API_BASE_URL}/course-invitations/${invitationToken}/accept/`
-      : `${API_BASE_URL}/invitations/${invitationToken}/accept/`
-  const response = await authorizedFetch(path, {
-    method: 'POST',
-    body: JSON.stringify({}),
-  }, accessToken)
-  return parseJson<Record<string, unknown>>(response)
+      : invitationType === "course_enrollment"
+        ? `${API_BASE_URL}/course-enrollment-invitations/${invitationToken}/accept/`
+        : `${API_BASE_URL}/invitations/${invitationToken}/accept/`;
+  const response = await authorizedFetch(
+    path,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+    accessToken,
+  );
+  return parseJson<Record<string, unknown>>(response);
 }
 
 export async function rejectInvitation(
   invitationToken: string,
-  invitationType: 'organization' | 'course_instructor' = 'organization',
+  invitationType:
+    | "organization"
+    | "course_instructor"
+    | "course_enrollment" = "organization",
 ): Promise<Record<string, unknown>> {
   const path =
-    invitationType === 'course_instructor'
+    invitationType === "course_instructor"
       ? `${API_BASE_URL}/course-invitations/${invitationToken}/reject/`
-      : `${API_BASE_URL}/invitations/${invitationToken}/reject/`
+      : invitationType === "course_enrollment"
+        ? `${API_BASE_URL}/course-enrollment-invitations/${invitationToken}/reject/`
+        : `${API_BASE_URL}/invitations/${invitationToken}/reject/`;
   const response = await fetch(path, {
-    method: 'POST',
+    method: "POST",
     headers: jsonHeaders(),
     body: JSON.stringify({}),
-  })
-  return parseJson<Record<string, unknown>>(response)
+  });
+  return parseJson<Record<string, unknown>>(response);
 }
+
 
 export function subscribeToAuthSessionChanges(
   onChange: (accessToken: string | null) => void,

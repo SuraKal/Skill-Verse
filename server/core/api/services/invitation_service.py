@@ -119,7 +119,6 @@ def create_course_instructor_invitation(
     return invitation
 
 
-
 def create_course_enrollment_invitation(
     *,
     organization,
@@ -131,14 +130,16 @@ def create_course_enrollment_invitation(
 ):
     normalized_email = invited_email.lower().strip()
     if CourseEnrollmentAssignment.objects.filter(course=course, user__email=normalized_email).exists():
-        raise serializers.ValidationError('This user is already enrolled in the course.')
+        raise serializers.ValidationError(
+            'This user is already enrolled in the course.')
 
     if CourseEnrollmentInvitation.objects.filter(
         course=course,
         invited_email=normalized_email,
         status=InvitationStatus.PENDING,
     ).exists():
-        raise serializers.ValidationError('A pending enrollment invitation already exists for this email.')
+        raise serializers.ValidationError(
+            'A pending enrollment invitation already exists for this email.')
 
     invitation = CourseEnrollmentInvitation.objects.create(
         organization=organization,
@@ -147,8 +148,8 @@ def create_course_enrollment_invitation(
         invited_email=normalized_email,
         custom_message=custom_message,
     )
-    accept_url = f'{frontend_url.rstrip("/")}/invite/course/{invitation.token}?action=accept'
-    reject_url = f'{frontend_url.rstrip("/")}/invite/course/{invitation.token}?action=reject'
+    accept_url = f'{frontend_url.rstrip("/")}/invite/course-enrollment/{invitation.token}?action=accept'
+    reject_url = f'{frontend_url.rstrip("/")}/invite/course-enrollment/{invitation.token}?action=reject'
     send_course_enrollment_invitation_email(
         invited_email=invitation.invited_email,
         organization_name=organization.name,
@@ -159,7 +160,6 @@ def create_course_enrollment_invitation(
         reject_url=reject_url,
     )
     return invitation
-
 
 
 @transaction.atomic

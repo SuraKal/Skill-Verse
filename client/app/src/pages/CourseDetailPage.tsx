@@ -11,7 +11,7 @@ import type {
 } from '../types'
 import '../styles/Dashboard.css'
 
-type CourseManagementTab = 'details'
+type CourseManagementTab = 'details' | 'instructors'
 
 function CourseTabs({
   activeTab,
@@ -29,6 +29,13 @@ function CourseTabs({
           onClick={() => onChange('details')}
         >
           <span>Details</span>
+        </button>
+        <button
+          type="button"
+          className={`sv-workspace-nav__item${activeTab === 'instructors' ? ' sv-workspace-nav__item--active' : ''}`}
+          onClick={() => onChange('instructors')}
+        >
+          <span>Instructors</span>
         </button>
       </div>
       <p className="sv-panel__sub" style={{ marginTop: 14 }}>
@@ -208,6 +215,7 @@ function InstructorInviteForm({
   )
 }
 
+
 export function CourseDetailPage({ token }: { token: string }) {
   const { courseId } = useParams<{ courseId: string }>()
   const [data, setData] = useState<CourseManagementData | null>(null)
@@ -267,7 +275,8 @@ export function CourseDetailPage({ token }: { token: string }) {
         </div>
         <h1 className="sv-page-header__title">{course.title}</h1>
         <p className="sv-page-header__sub">
-          Manage core course details now, with room for more course operations later.
+          Manage core course details now, with room for more course operations
+          later.
         </p>
       </div>
 
@@ -275,7 +284,9 @@ export function CourseDetailPage({ token }: { token: string }) {
         <div className="sv-metric">
           <div className="sv-metric__header">
             <span className="sv-metric__label">Instructors</span>
-            <span className="sv-metric__icon" aria-hidden><Icon.Users /></span>
+            <span className="sv-metric__icon" aria-hidden>
+              <Icon.Users />
+            </span>
           </div>
           <div className="sv-metric__value">{stats.instructor_count}</div>
           <div className="sv-metric__note">Assigned to this course</div>
@@ -283,29 +294,39 @@ export function CourseDetailPage({ token }: { token: string }) {
         <div className="sv-metric">
           <div className="sv-metric__header">
             <span className="sv-metric__label">Pending invites</span>
-            <span className="sv-metric__icon" aria-hidden><Icon.Mail /></span>
+            <span className="sv-metric__icon" aria-hidden>
+              <Icon.Mail />
+            </span>
           </div>
-          <div className="sv-metric__value">{stats.pending_instructor_invitation_count}</div>
+          <div className="sv-metric__value">
+            {stats.pending_instructor_invitation_count}
+          </div>
           <div className="sv-metric__note">Awaiting response</div>
         </div>
       </div>
 
       <CourseTabs activeTab={activeTab} onChange={setActiveTab} />
 
-      {activeTab === 'details' && (
+      {activeTab === "details" && (
         <>
           <div className="sv-grid-2">
             <div className="sv-panel">
               <div className="sv-panel__head">
                 <span className="sv-panel__title">Course details</span>
-                <span className={`sv-role-badge sv-role-badge--${permissions.role.toLowerCase()}`}>
+                <span
+                  className={`sv-role-badge sv-role-badge--${permissions.role.toLowerCase()}`}
+                >
                   {permissions.role}
                 </span>
               </div>
               <div className="sv-course-detail-hero">
                 <div className="sv-course-detail-hero__media">
                   {course.thumbnail ? (
-                    <img src={course.thumbnail} alt={course.title} className="sv-course-card__image" />
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
+                      className="sv-course-card__image"
+                    />
                   ) : (
                     <div className="sv-course-card__placeholder" aria-hidden>
                       <Icon.Chart />
@@ -313,40 +334,104 @@ export function CourseDetailPage({ token }: { token: string }) {
                   )}
                 </div>
                 <div className="sv-course-detail-hero__body">
-                  <div className="sv-course-detail-hero__title">{course.title}</div>
+                  <div className="sv-course-detail-hero__title">
+                    {course.title}
+                  </div>
                   <p className="sv-course-card__description">
-                    {course.description || 'No description has been added for this course yet.'}
+                    {course.description ||
+                      "No description has been added for this course yet."}
                   </p>
                 </div>
               </div>
 
-              <div className="sv-grid-2" style={{ marginTop: 14, marginBottom: 0 }}>
+              <div
+                className="sv-grid-2"
+                style={{ marginTop: 14, marginBottom: 0 }}
+              >
                 <div className="sv-selector-card" style={{ marginTop: 0 }}>
                   <div className="sv-selector-card__title">Categories</div>
                   <div className="sv-tag-group" style={{ marginTop: 12 }}>
                     {course.categories.length > 0 ? (
                       course.categories.map((category) => (
-                        <span key={category.id} className="sv-tag">{category.name}</span>
+                        <span key={category.id} className="sv-tag">
+                          {category.name}
+                        </span>
                       ))
                     ) : (
-                      <span className="sv-inline-note">No categories assigned.</span>
+                      <span className="sv-inline-note">
+                        No categories assigned.
+                      </span>
                     )}
                   </div>
                 </div>
 
                 <div className="sv-selector-card" style={{ marginTop: 0 }}>
                   <div className="sv-selector-card__title">Organizations</div>
-                  <div className="sv-course-card__orgs" style={{ marginTop: 12 }}>
+                  <div
+                    className="sv-course-card__orgs"
+                    style={{ marginTop: 12 }}
+                  >
                     {course.organizations.length > 0 ? (
                       course.organizations.map((organization) => (
-                        <span key={organization.id} className="sv-mini-pill">{organization.name}</span>
+                        <span key={organization.id} className="sv-mini-pill">
+                          {organization.name}
+                        </span>
                       ))
                     ) : (
-                      <span className="sv-inline-note">No organizations linked.</span>
+                      <span className="sv-inline-note">
+                        No organizations linked.
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
+            </div>
+
+          </div>
+        </>
+      )}
+
+      {activeTab === "instructors" && (
+        <>
+          <div className="sv-grid-2">
+            <div className="sv-panel">
+              <div className="sv-panel__head">
+                <span className="sv-panel__title">Instructors</span>
+                <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                  {instructors.length} assigned
+                </span>
+              </div>
+              {instructors.length === 0 ? (
+                <div className="sv-empty" style={{ padding: "24px 0" }}>
+                  <div className="sv-empty__icon" aria-hidden>
+                    <Icon.Users />
+                  </div>
+                  <div className="sv-empty__title">No instructors assigned</div>
+                  <div className="sv-empty__sub">
+                    Accepted instructor invitations will show up here.
+                  </div>
+                </div>
+              ) : (
+                <div className="sv-table-wrap">
+                  <table className="sv-table" aria-label="Course instructors">
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {instructors.map((assignment) => (
+                        <InstructorRow
+                          key={assignment.id}
+                          assignment={assignment}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             <div className="sv-panel">
@@ -361,51 +446,33 @@ export function CourseDetailPage({ token }: { token: string }) {
           </div>
 
           <div className="sv-grid-2">
-            <div className="sv-panel">
-              <div className="sv-panel__head">
-                <span className="sv-panel__title">Instructors</span>
-                <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{instructors.length} assigned</span>
-              </div>
-              {instructors.length === 0 ? (
-                <div className="sv-empty" style={{ padding: '24px 0' }}>
-                  <div className="sv-empty__icon" aria-hidden><Icon.Users /></div>
-                  <div className="sv-empty__title">No instructors assigned</div>
-                  <div className="sv-empty__sub">Accepted instructor invitations will show up here.</div>
-                </div>
-              ) : (
-                <div className="sv-table-wrap">
-                  <table className="sv-table" aria-label="Course instructors">
-                    <thead>
-                      <tr>
-                        <th>User</th>
-                        <th>Role</th>
-                        <th>Joined</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {instructors.map((assignment) => (
-                        <InstructorRow key={assignment.id} assignment={assignment} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+
 
             <div className="sv-panel">
               <div className="sv-panel__head">
                 <span className="sv-panel__title">Instructor invitations</span>
-                <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{instructor_invitations.length} sent</span>
+                <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                  {instructor_invitations.length} sent
+                </span>
               </div>
               {instructor_invitations.length === 0 ? (
-                <div className="sv-empty" style={{ padding: '24px 0' }}>
-                  <div className="sv-empty__icon" aria-hidden><Icon.Mail /></div>
-                  <div className="sv-empty__title">No instructor invitations yet</div>
-                  <div className="sv-empty__sub">Invite instructors from the panel above when you are ready.</div>
+                <div className="sv-empty" style={{ padding: "24px 0" }}>
+                  <div className="sv-empty__icon" aria-hidden>
+                    <Icon.Mail />
+                  </div>
+                  <div className="sv-empty__title">
+                    No instructor invitations yet
+                  </div>
+                  <div className="sv-empty__sub">
+                    Invite instructors from the panel above when you are ready.
+                  </div>
                 </div>
               ) : (
                 <div className="sv-table-wrap">
-                  <table className="sv-table" aria-label="Course instructor invitations">
+                  <table
+                    className="sv-table"
+                    aria-label="Course instructor invitations"
+                  >
                     <thead>
                       <tr>
                         <th>Email</th>
@@ -418,7 +485,10 @@ export function CourseDetailPage({ token }: { token: string }) {
                     </thead>
                     <tbody>
                       {instructor_invitations.map((invitation) => (
-                        <InstructorInvitationRow key={invitation.id} invitation={invitation} />
+                        <InstructorInvitationRow
+                          key={invitation.id}
+                          invitation={invitation}
+                        />
                       ))}
                     </tbody>
                   </table>
@@ -429,5 +499,5 @@ export function CourseDetailPage({ token }: { token: string }) {
         </>
       )}
     </>
-  )
+  );
 }

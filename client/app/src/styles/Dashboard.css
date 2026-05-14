@@ -681,6 +681,10 @@
   gap: 6px;
 }
 
+.sv-course-card__middle{
+  justify-content: center;
+}
+
 .sv-course-card__title {
   font-size: 14px;
   font-weight: 700;

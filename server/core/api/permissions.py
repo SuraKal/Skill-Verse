@@ -1,6 +1,6 @@
 from rest_framework import permissions
 
-from .models import CourseInstructorInvitation, Invitation, Membership, OrganizationRole
+from .models import CourseInstructorInvitation, Invitation, Membership, OrganizationRole, CourseEnrollmentInvitation
 
 
 class HasOrganizationReadAccess(permissions.BasePermission):
@@ -30,6 +30,15 @@ class IsCourseInstructorInvitationRecipient(permissions.BasePermission):
     def has_permission(self, request, view):
         token = view.kwargs.get('token')
         invitation = CourseInstructorInvitation.objects.filter(token=token).first()
+        if invitation is None:
+            return False
+        return invitation.invited_email.lower() == request.user.email.lower()
+
+
+class IsCourseEnrollmentInvitationRecipient(permissions.BasePermission):
+    def has_permission(self, request, view):
+        token = view.kwargs.get('token')
+        invitation = CourseEnrollmentInvitation.objects.filter(token=token).first()
         if invitation is None:
             return False
         return invitation.invited_email.lower() == request.user.email.lower()

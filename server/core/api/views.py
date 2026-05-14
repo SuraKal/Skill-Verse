@@ -14,7 +14,10 @@ from .models import (
     Course,
     CourseCategory,
     CourseInstructorAssignment,
+    CourseEnrollmentAssignment,
     CourseInstructorInvitation,
+    CourseEnrollmentInvitation,
+    CoursePrivacy,
     Invitation,
     InvitationStatus,
     Membership,
@@ -25,6 +28,7 @@ from .permissions import (
     HasOrganizationManagementAccess,
     HasOrganizationReadAccess,
     IsCourseInstructorInvitationRecipient,
+    IsCourseEnrollmentInvitationRecipient,
     IsInvitationRecipient,
 )
 from .serializers import (
@@ -33,6 +37,8 @@ from .serializers import (
     DashboardSerializer,
     CourseInstructorInvitationDetailSerializer,
     CourseInstructorInvitationSerializer,
+    CourseEnrollmentInvitationDetailSerializer,
+    CourseEnrollmentInvitationSerializer,
     InvitationDetailSerializer,
     InvitationRespondSerializer,
     InvitationSerializer,
@@ -47,10 +53,13 @@ from .serializers import (
 )
 from .services.invitation_service import (
     accept_course_instructor_invitation,
+    accept_course_enrollment_invitation,
     accept_invitation,
     create_course_instructor_invitation,
+    create_course_enrollment_invitation,
     create_invitation,
     reject_course_instructor_invitation,
+    reject_course_enrollment_invitation,
     reject_invitation,
 )
 
@@ -182,6 +191,11 @@ class DashboardView(APIView):
             invited_email=request.user.email.lower(),
             status=InvitationStatus.PENDING,
         ).select_related('organization', 'course')
+
+        course_enrollment_invitations = CourseEnrollmentInvitation.objects.filter(
+            invited_email=request.user.email.lower(),
+            status=InvitationStatus.PENDING,
+        ).select_related('organization', 'course')
         pending_invitations = [
             {
                 'id': str(invitation.id),
@@ -220,6 +234,25 @@ class DashboardView(APIView):
                 'custom_message': invitation.custom_message,
             }
             for invitation in course_instructor_invitations
+        ] + [
+            {
+                'id': str(invitation.id),
+                'token': invitation.token,
+                'invitation_type': 'course_enrollment',
+                'title': invitation.course.title,
+                'subtitle': f'Enrollment invite from {invitation.organization.name}',
+                'invited_email': invitation.invited_email,
+                'status': invitation.status,
+                'date_sent': invitation.date_sent,
+                'expires_at': invitation.expires_at,
+                'role': '',
+                'organization_id': str(invitation.organization_id),
+                'organization_name': invitation.organization.name,
+                'course_id': str(invitation.course_id),
+                'course_title': invitation.course.title,
+                'custom_message': invitation.custom_message,
+            }
+            for invitation in course_enrollment_invitations
         ]
         pending_invitations.sort(key=lambda invitation: invitation['date_sent'], reverse=True)
         active_org = getattr(request.user.profile, 'active_organization', None)
@@ -395,7 +428,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         payload = {
             'course': course,
             'instructors': course.instructor_assignments.select_related('user').all(),
+            'enrollments': course.enrollment_assignments.select_related('user').all(),
             'instructor_invitations': course.instructor_invitations.select_related('invited_by').all(),
+            'enrollment_invitations': course.enrollment_invitations.select_related('invited_by').all(),
             'manageable_organizations': [organization],
             'role': membership.role,
             'can_manage_course': membership.role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER},
@@ -408,7 +443,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                     'manageable_course_ids': {str(course.id)} if payload['can_manage_course'] else set(),
                     'created_course_ids': {str(course.id)} if course.created_by_id == request.user.id else set(),
                     'instructor_course_ids': {str(course.id)} if course.instructor_assignments.filter(user=request.user).exists() else set(),
-                    'enrolled_course_ids': set(),
+                    'enrollment_course_ids': {str(course.id)} if course.enrollment_assignments.filter(user=request.user).exists() else set(),
                     'member_course_ids': {str(course.id)},
                 },
             ).data
@@ -445,6 +480,38 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             frontend_url=settings.FRONTEND_URL,
         )
         return Response(CourseInstructorInvitationSerializer(invitation).data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['get', 'post'], url_path=r'courses/(?P<course_id>[^/.]+)/enrollment-invitations')
+    def course_enrollment_invitations(self, request, pk=None, course_id=None):
+        organization = self.get_object()
+        membership = Membership.objects.get(user=request.user, organization=organization)
+        course = get_object_or_404(
+            Course.objects.prefetch_related('organizations'),
+            id=course_id,
+            organizations=organization,
+        )
+
+        if request.method == 'GET':
+            invitations = course.enrollment_invitations.select_related('invited_by').all()
+            return Response(CourseEnrollmentInvitationSerializer(invitations, many=True).data)
+
+        if membership.role not in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}:
+            raise serializers.ValidationError('You do not have permission to invite students to this course.')
+
+        serializer = CourseEnrollmentInvitationSerializer(
+            data=request.data,
+            context={'request': request, 'organization': organization, 'course': course},
+        )
+        serializer.is_valid(raise_exception=True)
+        invitation = create_course_enrollment_invitation(
+            organization=organization,
+            course=course,
+            invited_by=request.user,
+            invited_email=serializer.validated_data['invited_email'],
+            custom_message=serializer.validated_data.get('custom_message', ''),
+            frontend_url=settings.FRONTEND_URL,
+        )
+        return Response(CourseEnrollmentInvitationSerializer(invitation).data, status=status.HTTP_201_CREATED)
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -468,6 +535,9 @@ class CourseViewSet(viewsets.ModelViewSet):
         instructor_course_ids = set(
             CourseInstructorAssignment.objects.filter(user=request.user).values_list('course_id', flat=True)
         )
+        enrollment_ids = set(
+            CourseEnrollmentAssignment.objects.filter(user=request.user).values_list('course_id', flat=True)
+        )
         member_course_ids = set(
             Course.objects.filter(organizations__memberships__user=request.user).values_list('id', flat=True).distinct()
         )
@@ -478,10 +548,16 @@ class CourseViewSet(viewsets.ModelViewSet):
             'courses': courses,
             'course_categories': CourseCategory.objects.filter(is_active=True).order_by('name'),
             'manageable_organizations': manageable_organizations,
-            'all_course_count': len(courses),
+            'all_course_count': sum(
+                1 for c in courses
+                if c.privacy == CoursePrivacy.PUBLIC
+                or c.id in created_course_ids
+                or c.id in instructor_course_ids
+                or c.id in member_course_ids
+            ),
             'created_course_count': len(created_course_ids),
             'teaching_course_count': len(instructor_course_ids),
-            'enrolled_course_count': 0,
+            'enrolled_course_count': len(enrollment_ids),
             'manageable_course_count': len(manageable_course_ids),
         }
         return Response(
@@ -547,6 +623,8 @@ class CourseViewSet(viewsets.ModelViewSet):
             'course': course,
             'instructors': course.instructor_assignments.select_related('user').all(),
             'instructor_invitations': course.instructor_invitations.select_related('invited_by').all(),
+            'enrollments': course.enrollment_assignments.select_related('user').all(),
+            'enrollment_invitations': course.enrollment_invitations.select_related('invited_by').all(),
             'manageable_organizations': manageable_organizations,
             'role': get_course_role_for_user(user=request.user, course=course, manageable_ids=manageable_ids),
             'can_manage_course': user_can_manage_course(user=request.user, course=course, manageable_ids=manageable_ids),
@@ -559,7 +637,7 @@ class CourseViewSet(viewsets.ModelViewSet):
                     'manageable_course_ids': {str(course.id)} if payload['can_manage_course'] else set(),
                     'created_course_ids': {str(course.id)} if course.created_by_id == request.user.id else set(),
                     'instructor_course_ids': {str(course.id)} if course.instructor_assignments.filter(user=request.user).exists() else set(),
-                    'enrolled_course_ids': set(),
+                    'enrollment_course_ids': {str(course.id)} if course.enrollment_assignments.filter(user=request.user).exists() else set(),
                     'member_course_ids': {str(course.id)} if course.organizations.filter(memberships__user=request.user).exists() else set(),
                 },
             ).data
@@ -603,6 +681,47 @@ class CourseViewSet(viewsets.ModelViewSet):
             frontend_url=settings.FRONTEND_URL,
         )
         return Response(CourseInstructorInvitationSerializer(invitation).data, status=status.HTTP_201_CREATED)
+    
+
+    @action(detail=True, methods=['get', 'post'], url_path='enrollment-invitations')
+    def enrollment_invitations(self, request, pk=None):
+        course = self.get_object()
+        manageable_organizations = list(
+            course.organizations.filter(id__in=get_manageable_organization_ids_for_user(request.user))
+        )
+
+        if request.method == 'GET':
+            invitations = course.enrollment_invitations.select_related('invited_by').all()
+            return Response(CourseEnrollmentInvitationSerializer(invitations, many=True).data)
+
+        if not manageable_organizations and course.created_by_id != request.user.id:
+            raise serializers.ValidationError('You do not have permission to invite enrollments to this course.')
+
+        selected_organization = manageable_organizations[0] if manageable_organizations else None
+        organization_id = request.data.get('organization_id')
+        if organization_id:
+            selected_organization = next(
+                (organization for organization in manageable_organizations if str(organization.id) == str(organization_id)),
+                None,
+            )
+        if selected_organization is None:
+            raise serializers.ValidationError('Select a manageable organization for this enrollment invitation.')
+
+        serializer = CourseEnrollmentInvitationSerializer(
+            data=request.data,
+            context={'request': request, 'organization': selected_organization, 'course': course},
+        )
+        serializer.is_valid(raise_exception=True)
+        invitation = create_course_enrollment_invitation(
+            organization=selected_organization,
+            course=course,
+            invited_by=request.user,
+            invited_email=serializer.validated_data['invited_email'],
+            custom_message=serializer.validated_data.get('custom_message', ''),
+            frontend_url=settings.FRONTEND_URL,
+        )
+        return Response(CourseEnrollmentInvitationSerializer(invitation).data, status=status.HTTP_201_CREATED)
+    
 
 
 class InvitationDetailView(generics.RetrieveAPIView):
@@ -638,6 +757,12 @@ class CourseInstructorInvitationDetailView(generics.RetrieveAPIView):
     lookup_field = 'token'
     queryset = CourseInstructorInvitation.objects.select_related('organization', 'course')
 
+class CourseEnrollmentInvitationDetailView(generics.RetrieveAPIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = CourseEnrollmentInvitationDetailSerializer
+    lookup_field = 'token'
+    queryset = CourseEnrollmentInvitation.objects.select_related('organization', 'course')
+
 
 class CourseInstructorInvitationAcceptView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsCourseInstructorInvitationRecipient]
@@ -652,6 +777,19 @@ class CourseInstructorInvitationAcceptView(APIView):
         assignment = accept_course_instructor_invitation(invitation=invitation, user=request.user)
         return Response({'status': invitation.status, 'assignment_id': assignment.id})
 
+class CourseEnrollmentInvitationAcceptView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsCourseEnrollmentInvitationRecipient]
+
+    def post(self, request, token):
+        invitation = get_object_or_404(
+            CourseEnrollmentInvitation.objects.select_related('organization', 'course'),
+            token=token,
+        )
+        serializer = InvitationRespondSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        assignment = accept_course_enrollment_invitation(invitation=invitation, user=request.user)
+        return Response({'status': invitation.status, 'assignment_id': assignment.id})
+
 
 class CourseInstructorInvitationRejectView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -662,6 +800,19 @@ class CourseInstructorInvitationRejectView(APIView):
             token=token,
         )
         reject_course_instructor_invitation(invitation)
+        return Response({'status': invitation.status})
+
+
+
+class CourseEnrollmentInvitationRejectView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, token):
+        invitation = get_object_or_404(
+            CourseEnrollmentInvitation.objects.select_related('organization', 'course'),
+            token=token,
+        )
+        reject_course_enrollment_invitation(invitation)
         return Response({'status': invitation.status})
 
 

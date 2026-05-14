@@ -256,6 +256,21 @@ export async function sendCourseInstructorInvitation(
   )
   return parseJson<Record<string, unknown>>(response)
 }
+export async function sendCourseEnrollmentInvitation(
+  token: string,
+  courseId: string,
+  payload: { invited_email: string; custom_message: string; organization_id: string },
+): Promise<Record<string, unknown>> {
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/courses/${courseId}/enrollment-invitations/`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    token,
+  )
+  return parseJson<Record<string, unknown>>(response)
+}
 
 export async function createCourse(
   token: string,
@@ -265,11 +280,13 @@ export async function createCourse(
     categoryIds: string[]
     organizationIds: string[]
     thumbnail?: File | null
+    privacy?: 'public' | 'private'
   },
 ): Promise<Record<string, unknown>> {
   const formData = new FormData()
   formData.append('title', payload.title)
   formData.append('description', payload.description)
+  formData.append('privacy', payload.privacy ?? 'public')
   payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
   payload.organizationIds.forEach((organizationId) => formData.append('organization_ids', organizationId))
   if (payload.thumbnail) {
@@ -291,31 +308,37 @@ export async function updateCourse(
   token: string,
   courseId: string,
   payload: {
-    title: string
-    description: string
-    categoryIds: string[]
-    organizationIds: string[]
-    thumbnail?: File | null
+    title: string;
+    description: string;
+    categoryIds: string[];
+    organizationIds: string[];
+    thumbnail?: File | null;
+    privacy?: "public" | "private";
   },
 ): Promise<Record<string, unknown>> {
-  const formData = new FormData()
-  formData.append('title', payload.title)
-  formData.append('description', payload.description)
-  payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
-  payload.organizationIds.forEach((organizationId) => formData.append('organization_ids', organizationId))
+  const formData = new FormData();
+  formData.append("title", payload.title);
+  formData.append("description", payload.description);
+  formData.append("privacy", payload.privacy ?? "public");
+  payload.categoryIds.forEach((categoryId) =>
+    formData.append("category_ids", categoryId),
+  );
+  payload.organizationIds.forEach((organizationId) =>
+    formData.append("organization_ids", organizationId),
+  );
   if (payload.thumbnail) {
-    formData.append('thumbnail', payload.thumbnail)
+    formData.append("thumbnail", payload.thumbnail);
   }
 
   const response = await authorizedFetch(
     `${API_BASE_URL}/courses/${courseId}/`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: formData,
     },
     token,
-  )
-  return parseJson<Record<string, unknown>>(response)
+  );
+  return parseJson<Record<string, unknown>>(response);
 }
 
 export async function deleteCourse(token: string, courseId: string): Promise<void> {

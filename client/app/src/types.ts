@@ -56,27 +56,29 @@ export interface OrganizationOption {
 }
 
 export interface Course {
-  id: string
-  title: string
-  created_by: User | null
-  description: string
-  thumbnail: string | null
-  categories: CourseCategory[]
-  organizations: OrganizationOption[]
-  can_manage: boolean
-  is_created_by_me: boolean
-  is_instructor: boolean
-  is_enrolled: boolean
-  is_member_course: boolean
-  instructor_count: number
-  created_at: string
-  updated_at: string
+  id: string;
+  title: string;
+  created_by: User | null;
+  description: string;
+  thumbnail: string | null;
+  privacy: 'public' | 'private';
+  categories: CourseCategory[];
+  organizations: OrganizationOption[];
+  can_manage: boolean;
+  is_created_by_me: boolean;
+  is_instructor: boolean;
+  is_enrolled: boolean;
+  is_member_course: boolean;
+  is_public: boolean;
+  instructor_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface InvitationDetail {
   id: string
   token: string
-  invitation_type: 'organization' | 'course_instructor'
+  invitation_type: 'organization' | 'course_instructor' | 'course_enrollment'
   title: string
   subtitle: string
   invited_email: string
@@ -132,8 +134,29 @@ export interface CourseInstructorAssignment {
   created_at: string
   user: User
 }
+export interface CourseEnrollmentAssignment {
+  id: string
+  created_at: string
+  user: User
+}
 
 export interface CourseInstructorInvitation {
+  id: string
+  token: string
+  organization_id: string
+  organization_name: string
+  course_id: string
+  course_title: string
+  invited_email: string
+  custom_message: string
+  status: string
+  date_sent: string
+  expires_at: string
+  invited_by: User
+}
+
+// CourseEnrollmentInvitation
+export interface CourseEnrollmentInvitation {
   id: string
   token: string
   organization_id: string
@@ -173,16 +196,20 @@ export interface OrganizationDashboardData {
 export interface CourseManagementData {
   course: Course
   instructors: CourseInstructorAssignment[]
+  enrollments: CourseEnrollmentAssignment[]
   instructor_invitations: CourseInstructorInvitation[]
+  enrollment_invitations: CourseEnrollmentInvitation[]
   manageable_organizations: OrganizationOption[]
   permissions: {
     role: string
     can_invite_instructors: boolean
+    can_invite_enrollments: boolean
     can_manage_course: boolean
   }
   stats: {
     instructor_count: number
     pending_instructor_invitation_count: number
+    pending_enrollment_invitation_count: number
   }
 }
 

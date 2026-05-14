@@ -19,6 +19,7 @@ type CourseFormState = {
   categoryIds: string[]
   organizationIds: string[]
   thumbnail: File | null
+  privacy?: 'public' | 'private'
 }
 
 const emptyCourseForm: CourseFormState = {
@@ -27,6 +28,7 @@ const emptyCourseForm: CourseFormState = {
   categoryIds: [],
   organizationIds: [],
   thumbnail: null,
+  privacy: 'public',
 }
 
 function toggleSelection(values: string[], value: string) {
@@ -40,6 +42,7 @@ function toCourseFormState(course: Course): CourseFormState {
     categoryIds: course.categories.map((category) => category.id),
     organizationIds: course.organizations.map((organization) => organization.id),
     thumbnail: null,
+    privacy: course.privacy,
   }
 }
 
@@ -124,6 +127,7 @@ function CourseComposer({
         categoryIds: form.categoryIds,
         organizationIds: form.organizationIds,
         thumbnail: form.thumbnail,
+        privacy: form.privacy,
       }
 
       if (editingCourse) {
@@ -190,6 +194,19 @@ function CourseComposer({
           placeholder="Add a short summary that helps instructors and learners understand the course."
         />
       </label>
+
+      <label className="sv-field" style={{ marginTop: 12 }}>
+        <span className="sv-field__label">Privacy</span>
+        <select
+          className="sv-input"
+          value={form.privacy}
+          onChange={(event) => setForm({ ...form, privacy: event.target.value as 'public' | 'private' })}
+        >
+          <option value="public">Public</option>
+          <option value="private">Private</option>
+        </select>
+      </label>
+
 
       <div className="sv-grid-2" style={{ marginBottom: 0 }}>
         <div className="sv-selector-card">
@@ -273,12 +290,17 @@ function CourseCard({
         : course.is_member_course
           ? 'From your workspace'
           : 'Visible across the catalog'
-
+  
+  const privacyLabel = course.is_public ? 'Public' : 'Private'
   return (
     <article className="sv-course-card">
       <div className="sv-course-card__media">
         {course.thumbnail ? (
-          <img src={course.thumbnail} alt={course.title} className="sv-course-card__image" />
+          <img
+            src={course.thumbnail}
+            alt={course.title}
+            className="sv-course-card__image"
+          />
         ) : (
           <div className="sv-course-card__placeholder" aria-hidden>
             <Icon.Chart />
@@ -290,26 +312,42 @@ function CourseCard({
           <div>
             <div className="sv-course-card__title">{course.title}</div>
             <div className="sv-course-card__meta">
-              {relationship} · {course.instructor_count} instructor{course.instructor_count === 1 ? '' : 's'}
+              {relationship} · {course.instructor_count} instructor
+              {course.instructor_count === 1 ? "" : "s"}
             </div>
+            <div className="sv-course-card__meta">{privacyLabel}</div>
           </div>
           <div className="sv-course-card__actions">
-            <button className="btn btn--ghost btn--sm" type="button" onClick={() => onOpen(course)}>
+            <button
+              className="btn btn--ghost btn--sm"
+              type="button"
+              onClick={() => onOpen(course)}
+            >
               Details
             </button>
             {course.can_manage && (
-              <button className="btn btn--ghost btn--sm" type="button" onClick={() => onEdit(course)}>
+              <button
+                className="btn btn--ghost btn--sm"
+                type="button"
+                onClick={() => onEdit(course)}
+              >
                 Edit
               </button>
             )}
             {course.can_manage && (
-              <button className="btn btn--ghost btn--sm" type="button" onClick={() => onDelete(course)}>
+              <button
+                className="btn btn--ghost btn--sm"
+                type="button"
+                onClick={() => onDelete(course)}
+              >
                 Remove
               </button>
             )}
           </div>
         </div>
-        <p className="sv-course-card__description">{course.description || 'No description added yet.'}</p>
+        <p className="sv-course-card__description">
+          {course.description || "No description added yet."}
+        </p>
         <div className="sv-tag-group">
           {course.categories.map((category) => (
             <span key={category.id} className="sv-tag">
@@ -324,9 +362,21 @@ function CourseCard({
             </span>
           ))}
         </div>
+
+        {!course.can_manage && !course.is_enrolled && !course.is_instructor && (
+          <div className="sv-course-card__actions sv-course-card__middle">
+            <button
+              className="btn btn--ghost btn--sm"
+              type="button"
+              onClick={() => onDelete(course)}
+            >
+              Enroll
+            </button>
+          </div>
+        )}
       </div>
     </article>
-  )
+  );
 }
 
 export function CoursesPage({ token }: { token: string }) {
@@ -366,7 +416,7 @@ export function CoursesPage({ token }: { token: string }) {
         return data.courses.filter((course) => course.is_enrolled)
       case 'all':
       default:
-        return data.courses
+        return data.courses.filter((course) => course.is_public || course.is_member_course || course.is_instructor || course.is_created_by_me)
     }
   }, [activeScope, data])
 

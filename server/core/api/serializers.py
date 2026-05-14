@@ -5,8 +5,11 @@ from rest_framework import serializers
 from .models import (
     Course,
     CourseCategory,
+    CourseEnrollmentAssignment,
     CourseInstructorAssignment,
     CourseInstructorInvitation,
+    CourseEnrollmentInvitation,
+    CoursePrivacy,
     Invitation,
     Membership,
     Organization,
@@ -174,6 +177,7 @@ class CourseSerializer(serializers.ModelSerializer):
     is_instructor = serializers.SerializerMethodField()
     is_enrolled = serializers.SerializerMethodField()
     is_member_course = serializers.SerializerMethodField()
+    is_public = serializers.SerializerMethodField()
     instructor_count = serializers.IntegerField(read_only=True)
 
     class Meta:
@@ -185,6 +189,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'created_by',
             'description',
             'thumbnail',
+            'privacy',
 
             # Read
             'categories',
@@ -194,6 +199,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'is_instructor',
             'is_enrolled',
             'is_member_course',
+            'is_public',
             'instructor_count',
 
             # Write
@@ -256,6 +262,10 @@ class CourseSerializer(serializers.ModelSerializer):
     def get_is_member_course(self, obj):
         member_course_ids = self.context.get('member_course_ids', set())
         return str(obj.id) in member_course_ids or obj.id in member_course_ids
+    
+    def get_is_public(self, obj):
+        return obj.privacy == CoursePrivacy.PUBLIC
+
 
     def create(self, validated_data):
         categories = validated_data.pop('categories', [])
@@ -290,6 +300,12 @@ class CourseInstructorAssignmentSerializer(serializers.ModelSerializer):
         model = CourseInstructorAssignment
         fields = ['id', 'created_at', 'user']
 
+class CourseEnrollmentAssignmentSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+
+    class Meta:
+        model = CourseEnrollmentAssignment
+        fields = ['id', 'created_at', 'user']
 
 class CourseInstructorInvitationSerializer(serializers.ModelSerializer):
     invited_by = UserSerializer(read_only=True)
@@ -332,6 +348,53 @@ class CourseInstructorInvitationSerializer(serializers.ModelSerializer):
         course = self.context.get('course')
         if course and CourseInstructorAssignment.objects.filter(course=course, user__email=email).exists():
             raise serializers.ValidationError('This user is already an instructor for the course.')
+        return email
+
+    def validate_custom_message(self, value):
+        return value.strip()
+
+
+class CourseEnrollmentInvitationSerializer(serializers.ModelSerializer):
+    invited_by = UserSerializer(read_only=True)
+    course_id = serializers.UUIDField(source='course.id', read_only=True)
+    course_title = serializers.CharField(source='course.title', read_only=True)
+    organization_id = serializers.UUIDField(source='organization.id', read_only=True)
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
+
+    class Meta:
+        model = CourseEnrollmentInvitation
+        fields = [
+            'id',
+            'token',
+            'organization_id',
+            'organization_name',
+            'course_id',
+            'course_title',
+            'invited_email',
+            'custom_message',
+            'status',
+            'date_sent',
+            'expires_at',
+            'invited_by',
+        ]
+        read_only_fields = [
+            'id',
+            'token',
+            'organization_id',
+            'organization_name',
+            'course_id',
+            'course_title',
+            'status',
+            'date_sent',
+            'expires_at',
+            'invited_by',
+        ]
+
+    def validate_invited_email(self, value):
+        email = value.lower().strip()
+        course = self.context.get('course')
+        if course and CourseEnrollmentAssignment.objects.filter(course=course, user__email=email).exists():
+            raise serializers.ValidationError('This user is already enrolled in the course.')
         return email
 
     def validate_custom_message(self, value):
@@ -484,6 +547,53 @@ class CourseInstructorInvitationDetailSerializer(serializers.ModelSerializer):
         return ''
 
 
+class CourseEnrollmentInvitationDetailSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(read_only=True)
+    token = serializers.CharField(read_only=True)
+    invitation_type = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
+    subtitle = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+    organization_id = serializers.UUIDField(source='organization.id', read_only=True)
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
+    course_id = serializers.UUIDField(source='course.id', read_only=True)
+    course_title = serializers.CharField(source='course.title', read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = CourseEnrollmentInvitation
+        fields = [
+            'id',
+            'token',
+            'invitation_type',
+            'title',
+            'subtitle',
+            'organization_id',
+            'organization_name',
+            'course_id',
+            'course_title',
+            'invited_email',
+            'role',
+            'custom_message',
+            'status',
+            'date_sent',
+            'expires_at',
+            'is_expired',
+        ]
+
+    def get_invitation_type(self, _obj):
+        return 'course_enrollment'
+
+    def get_title(self, obj):
+        return obj.course.title
+
+    def get_subtitle(self, obj):
+        return f'Enrollment invite from {obj.organization.name}'
+
+    def get_role(self, _obj):
+        return ''
+
+
 class PendingInvitationSerializer(serializers.Serializer):
     id = serializers.CharField()
     token = serializers.CharField()
@@ -579,7 +689,9 @@ class PublicBootstrapSerializer(serializers.Serializer):
 class CourseDetailManagementSerializer(serializers.Serializer):
     course = CourseSerializer()
     instructors = CourseInstructorAssignmentSerializer(many=True)
+    enrollments = CourseEnrollmentAssignmentSerializer(many=True)
     instructor_invitations = CourseInstructorInvitationSerializer(many=True)
+    enrollment_invitations = CourseEnrollmentInvitationSerializer(many=True)
     manageable_organizations = OrganizationOptionSerializer(many=True)
     permissions = serializers.SerializerMethodField()
     stats = serializers.SerializerMethodField()
@@ -589,6 +701,7 @@ class CourseDetailManagementSerializer(serializers.Serializer):
         return {
             'role': role,
             'can_invite_instructors': obj['can_manage_course'],
+            'can_invite_enrollments': obj['can_manage_course'],
             'can_manage_course': obj['can_manage_course'],
         }
 
@@ -596,6 +709,7 @@ class CourseDetailManagementSerializer(serializers.Serializer):
         invitations = list(obj['instructor_invitations'])
         return {
             'instructor_count': len(obj['instructors']),
+            'enrollment_count': len(obj['enrollments']),
             'pending_instructor_invitation_count': len(
                 [invitation for invitation in invitations if invitation.status == 'pending']
             ),

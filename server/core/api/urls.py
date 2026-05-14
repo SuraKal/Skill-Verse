@@ -8,6 +8,9 @@ from .views import (
     CourseInstructorInvitationAcceptView,
     CourseInstructorInvitationDetailView,
     CourseInstructorInvitationRejectView,
+    CourseEnrollmentInvitationAcceptView,
+    CourseEnrollmentInvitationDetailView,
+    CourseEnrollmentInvitationRejectView,
     DashboardView,
     InvitationAcceptView,
     InvitationDetailView,
@@ -47,6 +50,22 @@ urlpatterns = [
     path(
         'course-invitations/<str:token>/reject/',
         CourseInstructorInvitationRejectView.as_view(),
+        name='course-invitation-reject',
+    ),
+    
+    path(
+        'course-invitations/<str:token>/',
+        CourseEnrollmentInvitationDetailView.as_view(),
+        name='course-invitation-detail',
+    ),
+    path(
+        'course-invitations/<str:token>/accept/',
+        CourseEnrollmentInvitationAcceptView.as_view(),
+        name='course-invitation-accept',
+    ),
+    path(
+        'course-invitations/<str:token>/reject/',
+        CourseEnrollmentInvitationRejectView.as_view(),
         name='course-invitation-reject',
     ),
     path('', include(router.urls)),

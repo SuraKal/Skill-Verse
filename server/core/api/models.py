@@ -36,6 +36,11 @@ class CoursePrivacy(models.TextChoices):
     PUBLIC = 'public', 'Public'
     PRIVATE = 'private', 'Private'
 
+
+class CoursePriceType(models.TextChoices):
+    FREE = 'free', 'Free'
+    PAID = 'paid', 'Paid'
+
 class Organization(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_organizations')
@@ -116,6 +121,7 @@ class Course(TimeStampedModel):
     )
 
     privacy = models.CharField(max_length=20, choices=CoursePrivacy.choices, default=CoursePrivacy.PRIVATE)
+    price_type = models.CharField(max_length=20, choices=CoursePriceType.choices, default=CoursePriceType.FREE)
 
     class Meta:
         ordering = ['title']

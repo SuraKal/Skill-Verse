@@ -10,6 +10,7 @@ from .models import (
     CourseInstructorInvitation,
     CourseEnrollmentInvitation,
     CoursePrivacy,
+    CoursePriceType,
     Invitation,
     Membership,
     Organization,
@@ -178,6 +179,7 @@ class CourseSerializer(serializers.ModelSerializer):
     is_enrolled = serializers.SerializerMethodField()
     is_member_course = serializers.SerializerMethodField()
     is_public = serializers.SerializerMethodField()
+    is_free = serializers.SerializerMethodField()
     instructor_count = serializers.IntegerField(read_only=True)
 
     class Meta:
@@ -190,6 +192,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'description',
             'thumbnail',
             'privacy',
+            'price_type',
 
             # Read
             'categories',
@@ -200,6 +203,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'is_enrolled',
             'is_member_course',
             'is_public',
+            'is_free',
             'instructor_count',
 
             # Write
@@ -266,6 +270,8 @@ class CourseSerializer(serializers.ModelSerializer):
     def get_is_public(self, obj):
         return obj.privacy == CoursePrivacy.PUBLIC
 
+    def get_is_free(self, obj):
+        return obj.price_type == CoursePriceType.FREE
 
     def create(self, validated_data):
         categories = validated_data.pop('categories', [])

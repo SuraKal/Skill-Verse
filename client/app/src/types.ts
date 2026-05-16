@@ -61,7 +61,8 @@ export interface Course {
   created_by: User | null;
   description: string;
   thumbnail: string | null;
-  privacy: 'public' | 'private';
+  privacy: "public" | "private";
+  price_type: "free" | "paid";
   categories: CourseCategory[];
   organizations: OrganizationOption[];
   can_manage: boolean;
@@ -70,6 +71,7 @@ export interface Course {
   is_enrolled: boolean;
   is_member_course: boolean;
   is_public: boolean;
+  is_free: boolean;
   instructor_count: number;
   created_at: string;
   updated_at: string;

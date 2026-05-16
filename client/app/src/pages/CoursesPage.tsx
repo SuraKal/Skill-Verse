@@ -15,13 +15,14 @@ import '../styles/Dashboard.css'
 type CourseScope = 'all' | 'created' | 'teaching' | 'enrolled'
 
 type CourseFormState = {
-  title: string
-  description: string
-  categoryIds: string[]
-  organizationIds: string[]
-  thumbnail: File | null
-  privacy?: 'public' | 'private'
-}
+  title: string;
+  description: string;
+  categoryIds: string[];
+  organizationIds: string[];
+  thumbnail: File | null;
+  privacy?: "public" | "private";
+  price_type?: "free" | "paid";
+};
 
 const emptyCourseForm: CourseFormState = {
   title: '',
@@ -30,6 +31,7 @@ const emptyCourseForm: CourseFormState = {
   organizationIds: [],
   thumbnail: null,
   privacy: 'public',
+  price_type: 'free',
 }
 
 function toggleSelection(values: string[], value: string) {
@@ -41,10 +43,13 @@ function toCourseFormState(course: Course): CourseFormState {
     title: course.title,
     description: course.description,
     categoryIds: course.categories.map((category) => category.id),
-    organizationIds: course.organizations.map((organization) => organization.id),
+    organizationIds: course.organizations.map(
+      (organization) => organization.id,
+    ),
     thumbnail: null,
     privacy: course.privacy,
-  }
+    price_type: course.price_type,
+  };
 }
 
 function CourseScopeNav({
@@ -129,6 +134,7 @@ function CourseComposer({
         organizationIds: form.organizationIds,
         thumbnail: form.thumbnail,
         privacy: form.privacy,
+        price_type: form.price_type,
       }
 
       if (editingCourse) {
@@ -208,6 +214,18 @@ function CourseComposer({
         </select>
       </label>
 
+      <label className="sv-field" style={{ marginTop: 12 }}>
+        <span className="sv-field__label">Price Type</span>
+        <select
+          className="sv-input"
+          value={form.price_type}
+          onChange={(event) => setForm({ ...form, price_type: event.target.value as 'free' | 'paid' })}
+        >
+          <option value="free">Free</option>
+          <option value="paid">Paid</option>
+        </select>
+      </label>
+
 
       <div className="sv-grid-2" style={{ marginBottom: 0 }}>
         <div className="sv-selector-card">
@@ -236,22 +254,34 @@ function CourseComposer({
           <div className="sv-selector-card__title">Organizations</div>
           <div className="sv-selector-card__sub">Choose the organizations that should own or surface this course.</div>
           <div className="sv-check-grid">
-            {organizations.map((organization) => (
-              <label key={organization.id} className="sv-check">
-                <input
-                  type="checkbox"
-                  checked={form.organizationIds.includes(organization.id)}
-                  onChange={() =>
-                    setForm((current) => ({
-                      ...current,
-                      organizationIds: toggleSelection(current.organizationIds, organization.id),
-                    }))
-                  }
-                />
-                <span>{organization.name}</span>
-              </label>
-            ))}
-          </div>
+  {organizations.length === 0 ? (
+    <div className="sv-empty" style={{ padding: '32px 0' }}>
+      <div className="sv-empty__icon" aria-hidden>
+        <Icon.Building />
+      </div>
+      <div className="sv-empty__title">No manageable organizations</div>
+      <div className="sv-empty__sub">
+        Create or join an organization to start adding courses.
+      </div>
+    </div>
+  ) : (
+    organizations.map((organization) => (
+      <label key={organization.id} className="sv-check">
+        <input
+          type="checkbox"
+          checked={form.organizationIds.includes(organization.id)}
+          onChange={() =>
+            setForm((current) => ({
+              ...current,
+              organizationIds: toggleSelection(current.organizationIds, organization.id),
+            }))
+          }
+        />
+        <span>{organization.name}</span>
+      </label>
+    ))
+  )}
+</div>
         </div>
       </div>
 
@@ -295,6 +325,7 @@ function CourseCard({
           : 'Visible across the catalog'
   
   const privacyLabel = course.is_public ? 'Public' : 'Private'
+  const priceTypeLabel = course.is_free ? 'Free' : 'Paid'
   return (
     <article className="sv-course-card">
       <div className="sv-course-card__media">
@@ -318,7 +349,10 @@ function CourseCard({
               {relationship} · {course.instructor_count} instructor
               {course.instructor_count === 1 ? "" : "s"}
             </div>
-            <div className="sv-course-card__meta">{privacyLabel}</div>
+            <div className="sv-course-card__meta">
+              <span className="sv-tag"> {privacyLabel} </span>
+              <span className="sv-tag"> {priceTypeLabel} </span>
+            </div>
           </div>
           <div className="sv-course-card__actions">
             <button

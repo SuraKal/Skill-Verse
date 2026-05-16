@@ -314,12 +314,14 @@ export async function updateCourse(
     organizationIds: string[];
     thumbnail?: File | null;
     privacy?: "public" | "private";
+    price_type?: "free" | "paid";
   },
 ): Promise<Record<string, unknown>> {
   const formData = new FormData();
   formData.append("title", payload.title);
   formData.append("description", payload.description);
   formData.append("privacy", payload.privacy ?? "public");
+  formData.append("price_type", payload.price_type ?? "free");
   payload.categoryIds.forEach((categoryId) =>
     formData.append("category_ids", categoryId),
   );

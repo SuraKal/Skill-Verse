@@ -384,7 +384,7 @@ function EnrollmentInviteForm({
       </label>
 
       {!canInvite && (
-        <p className="sv-inline-note">Only creators, managers, or the course creator can invite instructors.</p>
+        <p className="sv-inline-note">Only creators, managers, or the course creator can invite students.</p>
       )}
       {error && (
         <p className="sv-inline-error" role="alert">

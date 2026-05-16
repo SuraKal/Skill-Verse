@@ -354,6 +354,19 @@ export async function deleteCourse(token: string, courseId: string): Promise<voi
   }
 }
 
+export async function enrollInCourse(token: string, courseId: string): Promise<void> {
+  const response = await authorizedFetch(
+    `${API_BASE_URL}/courses/${courseId}/enroll/`,
+    {
+      method: 'POST',
+    },
+    token,
+  )
+  if (!response.ok) {
+    await parseJson<Record<string, unknown>>(response)
+  }
+}
+
 export async function createOrganizationCourse(
   token: string,
   organizationId: string,

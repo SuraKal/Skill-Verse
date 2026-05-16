@@ -6,7 +6,8 @@ import {
   deleteCourse,
   fetchCourseWorkspace,
   updateCourse,
-} from '../lib/api'
+  enrollInCourse,
+} from "../lib/api";
 import { Icon } from '../components/DashboardLayout'
 import type { Course, CourseCategory, CourseWorkspaceData, OrganizationOption } from '../types'
 import '../styles/Dashboard.css'
@@ -275,11 +276,13 @@ function CourseCard({
   onOpen,
   onEdit,
   onDelete,
+  onEnroll,
 }: {
   course: Course
   onOpen: (course: Course) => void
   onEdit: (course: Course) => void
-  onDelete: (course: Course) => void
+    onDelete: (course: Course) => void
+  onEnroll: (course: Course) => void
 }) {
   const relationship = course.is_created_by_me
     ? 'Created by you'
@@ -368,7 +371,7 @@ function CourseCard({
             <button
               className="btn btn--ghost btn--sm"
               type="button"
-              onClick={() => onDelete(course)}
+              onClick={() => onEnroll(course)}
             >
               Enroll
             </button>
@@ -464,6 +467,16 @@ export function CoursesPage({ token }: { token: string }) {
     }
   }
 
+  const handleEnrollCourse = async (course: Course) => {
+    try {
+      setCourseActionError(null)
+      await enrollInCourse(token, course.id);
+      load()
+    } catch (enrollError) {
+      setCourseActionError(enrollError instanceof Error ? enrollError.message : 'Failed to enroll in course.')
+    }
+  }
+
   return (
     <>
       <div className="sv-page-header">
@@ -554,6 +567,7 @@ export function CoursesPage({ token }: { token: string }) {
                   onOpen={(nextCourse) => navigate(`/dashboard/courses/${nextCourse.id}`)}
                   onEdit={(nextCourse) => setEditingCourse(nextCourse)}
                   onDelete={handleDeleteCourse}
+                  onEnroll={handleEnrollCourse}
                 />
               ))}
             </div>

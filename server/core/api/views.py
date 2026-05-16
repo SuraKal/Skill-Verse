@@ -568,7 +568,7 @@ class CourseViewSet(viewsets.ModelViewSet):
                     'manageable_course_ids': {str(course_id) for course_id in manageable_course_ids},
                     'created_course_ids': {str(course_id) for course_id in created_course_ids},
                     'instructor_course_ids': {str(course_id) for course_id in instructor_course_ids},
-                    'enrolled_course_ids': set(),
+                    'enrolled_course_ids': {str(course_id) for course_id in enrollment_ids},
                     'member_course_ids': {str(course_id) for course_id in member_course_ids},
                 },
             ).data
@@ -722,6 +722,26 @@ class CourseViewSet(viewsets.ModelViewSet):
         )
         return Response(CourseEnrollmentInvitationSerializer(invitation).data, status=status.HTTP_201_CREATED)
     
+    @action(detail=True, methods=['post'], url_path='enroll')
+    def enroll(self, request, pk=None):
+        course = self.get_object()
+
+        enrollment, created = CourseEnrollmentAssignment.objects.get_or_create(
+            course=course,
+            user=request.user,
+            defaults={'invited_by': None},
+        )
+
+        if not created:
+            return Response(
+                {'detail': 'You are already enrolled in this course.'},
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {'detail': 'Successfully enrolled.'},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class InvitationDetailView(generics.RetrieveAPIView):

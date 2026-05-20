@@ -196,23 +196,24 @@ export interface OrganizationDashboardData {
 }
 
 export interface CourseManagementData {
-  course: Course
-  instructors: CourseInstructorAssignment[]
-  enrollments: CourseEnrollmentAssignment[]
-  instructor_invitations: CourseInstructorInvitation[]
-  enrollment_invitations: CourseEnrollmentInvitation[]
-  manageable_organizations: OrganizationOption[]
+  course: Course;
+  instructors: CourseInstructorAssignment[];
+  enrollments: CourseEnrollmentAssignment[];
+  instructor_invitations: CourseInstructorInvitation[];
+  enrollment_invitations: CourseEnrollmentInvitation[];
+  manageable_organizations: OrganizationOption[];
+  price_type: "free" | "paid";
   permissions: {
-    role: string
-    can_invite_instructors: boolean
-    can_invite_enrollments: boolean
-    can_manage_course: boolean
-  }
+    role: string;
+    can_invite_instructors: boolean;
+    can_invite_enrollments: boolean;
+    can_manage_course: boolean;
+  };
   stats: {
-    instructor_count: number
-    pending_instructor_invitation_count: number
-    pending_enrollment_invitation_count: number
-  }
+    instructor_count: number;
+    pending_instructor_invitation_count: number;
+    pending_enrollment_invitation_count: number;
+  };
 }
 
 export interface CourseWorkspaceData {

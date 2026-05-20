@@ -356,16 +356,26 @@ export async function deleteCourse(token: string, courseId: string): Promise<voi
   }
 }
 
-export async function enrollInCourse(token: string, courseId: string): Promise<void> {
+export async function enrollInCourse(
+  token: string,
+  courseId: string,
+): Promise<void> {
+  const course = await fetchCourseManagement(token, courseId);
+
+  if (course && course.price_type === "paid") {
+    throw new Error(
+      "Here should be a payment flow before enrollment for paid courses, but it's not implemented yet."
+    );
+  }
+
   const response = await authorizedFetch(
     `${API_BASE_URL}/courses/${courseId}/enroll/`,
-    {
-      method: 'POST',
-    },
+    { method: "POST" },
     token,
-  )
+  );
+
   if (!response.ok) {
-    await parseJson<Record<string, unknown>>(response)
+    await parseJson<Record<string, unknown>>(response);
   }
 }
 

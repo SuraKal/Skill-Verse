@@ -42,6 +42,48 @@ class CoursePriceType(models.TextChoices):
     FREE = 'free', 'Free'
     PAID = 'paid', 'Paid'
 
+
+class EventVisibility(models.TextChoices):
+    PRIVATE = 'private', 'Private'
+    ORG_PRIVATE = 'org_private', 'Organization Private'
+    PUBLIC = 'public', 'Public'
+
+
+class EventStatus(models.TextChoices):
+    DRAFT = 'draft', 'Draft'
+    PENDING_APPROVAL = 'pending_approval', 'Pending Approval'
+    ACTIVE = 'active', 'Active'
+    ONGOING = 'ongoing', 'Ongoing'
+    COMPLETED = 'completed', 'Completed'
+    ARCHIVED = 'archived', 'Archived'
+    REJECTED = 'rejected', 'Rejected'
+
+
+class EventRole(models.TextChoices):
+    INITIATOR = 'initiator', 'Initiator'
+    ADMIN = 'admin', 'Admin'
+    ATTENDEE = 'attendee', 'Attendee'
+    SPEAKER = 'speaker', 'Speaker'
+    VOLUNTEER = 'volunteer', 'Volunteer'
+    GUEST = 'guest', 'Guest'
+
+
+class EventInviteStatus(models.TextChoices):
+    PENDING = 'pending', 'Pending'
+    ACCEPTED = 'accepted', 'Accepted'
+    DECLINED = 'declined', 'Declined'
+
+
+class InviteOrigin(models.TextChoices):
+    INVITED = 'invited', 'Invited'
+    SELF_REGISTERED = 'self_registered', 'Self Registered'
+
+
+class CoOrganizerStatus(models.TextChoices):
+    PENDING = 'pending', 'Pending'
+    ACCEPTED = 'accepted', 'Accepted'
+    DECLINED = 'declined', 'Declined'
+
 class Organization(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_organizations')
@@ -589,3 +631,132 @@ class SkillChatMessage(TimeStampedModel):
 
     def __str__(self):
         return f'{self.sender.get_username()} in {self.thread_id}'
+
+
+class Event(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='events',
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    cover_image = models.URLField(blank=True, null=True)
+    location = models.CharField(max_length=255)
+    start_datetime = models.DateTimeField()
+    end_datetime = models.DateTimeField()
+    timezone = models.CharField(max_length=64)
+    visibility = models.CharField(max_length=20, choices=EventVisibility.choices)
+    status = models.CharField(max_length=30, choices=EventStatus.choices, default=EventStatus.DRAFT)
+    rejection_note = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='created_events',
+    )
+
+    class Meta:
+        ordering = ['start_datetime', 'created_at']
+
+    def __str__(self):
+        return self.title
+
+
+class EventParticipant(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='participants',
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name='event_participations',
+        blank=True,
+        null=True,
+    )
+    email = models.EmailField()
+    event_role = models.CharField(max_length=20, choices=EventRole.choices)
+    invite_status = models.CharField(max_length=20, choices=EventInviteStatus.choices, default=EventInviteStatus.PENDING)
+    invite_origin = models.CharField(max_length=20, choices=InviteOrigin.choices, default=InviteOrigin.INVITED)
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name='event_participant_invites_sent',
+        blank=True,
+        null=True,
+    )
+    invited_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-invited_at', 'email']
+
+    def __str__(self):
+        return f'{self.email} -> {self.event.title} ({self.event_role})'
+
+
+class EventCoOrganizer(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='co_organizers',
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='event_co_organizer_invitations',
+        blank=True,
+        null=True,
+    )
+    invited_by_user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='sent_event_co_organizer_invites',
+    )
+    invite_email = models.EmailField()
+    status = models.CharField(max_length=20, choices=CoOrganizerStatus.choices, default=CoOrganizerStatus.PENDING)
+    invited_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-invited_at', 'organization__name']
+
+    def __str__(self):
+        organization_name = self.organization.name if self.organization_id else self.invite_email
+        return f'{organization_name} co-organizing {self.event.title}'
+
+
+class InvitationToken(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    token = models.CharField(max_length=255, unique=True, db_index=True)
+    event_participant = models.ForeignKey(
+        EventParticipant,
+        on_delete=models.CASCADE,
+        related_name='tokens',
+        blank=True,
+        null=True,
+    )
+    event_co_organizer = models.ForeignKey(
+        EventCoOrganizer,
+        on_delete=models.CASCADE,
+        related_name='tokens',
+        blank=True,
+        null=True,
+    )
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(blank=True, null=True)
+    revoked = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.token
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at

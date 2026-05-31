@@ -11,12 +11,18 @@ import {
   switchOrganization,
   updateProfile,
 } from '../lib/api'
+import {
+  acceptEventInvitation,
+  rejectEventInvitation,
+} from '../lib/api/events'
 import { Avatar, Icon, initials } from '../components/DashboardLayout'
+import { EventInvitationsSection } from '../components/events/EventInvitationsSection'
 import '../styles/Dashboard.css'
 import '../styles/LandingPage.css'
 import '../styles/SitePages.css'
 import type {
   DashboardData,
+  EventInvitationDetail,
   InvitationDetail,
   LoginResponse,
   Organization,
@@ -528,7 +534,50 @@ export function InvitationsPage({
     }
   }
 
+  const handleEventAction = async (
+    invitation: EventInvitationDetail,
+    action: 'accept' | 'reject',
+  ) => {
+    if (!invitation.id) {
+      return
+    }
+
+    setWorkingId(invitation.id)
+    setError(null)
+
+    try {
+      if (action === 'accept') {
+        await acceptEventInvitation(token, invitation.token, invitation.event_invitation_type, {
+          organization_id: invitation.organization_id || undefined,
+        })
+      } else {
+        await rejectEventInvitation(invitation.token, invitation.event_invitation_type)
+      }
+
+      load()
+
+      const cachedUser = localStorage.getItem('session_user')
+      if (cachedUser) {
+        try {
+          const user = JSON.parse(cachedUser) as LoginResponse['user']
+          onSession({
+            access: localStorage.getItem('access_token') ?? token,
+            refresh: localStorage.getItem('refresh_token') ?? '',
+            user,
+          })
+        } catch {
+          // Ignore invalid cache.
+        }
+      }
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : 'Unable to update invitation.')
+    } finally {
+      setWorkingId(null)
+    }
+  }
+
   const invitations = data?.pending_invitations ?? []
+  const eventInvitations = data?.event_invitations ?? []
 
   return (
     <>
@@ -589,6 +638,13 @@ export function InvitationsPage({
             ))}
           </div>
         )}
+
+        <EventInvitationsSection
+          invitations={eventInvitations}
+          workingId={workingId}
+          onAccept={(invitation) => void handleEventAction(invitation, 'accept')}
+          onDecline={(invitation) => void handleEventAction(invitation, 'reject')}
+        />
       </div>
     </>
   )

@@ -151,6 +151,32 @@ const Icon = {
       <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   ),
+  Calendar: () => (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <rect x="1.5" y="2.5" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+      <path d="M1.5 5.5h12" stroke="currentColor" strokeWidth="1.2"/>
+      <path d="M4 1.8v2.2M11 1.8v2.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M4 8h2M8 8h2M4 10.5h2M8 10.5h2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+    </svg>
+  ),
+  Lock: () => (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <rect x="3" y="6.5" width="9" height="6.5" rx="1.3" stroke="currentColor" strokeWidth="1.2"/>
+      <path d="M4.5 6.5V5a3 3 0 1 1 6 0v1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
+  Globe: () => (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <circle cx="7.5" cy="7.5" r="5.8" stroke="currentColor" strokeWidth="1.2"/>
+      <path d="M1.8 7.5h11.4M7.5 1.7c1.9 1.7 2.8 3.6 2.8 5.8s-.9 4.1-2.8 5.8c-1.9-1.7-2.8-3.6-2.8-5.8s.9-4.1 2.8-5.8Z" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  CheckCircle: () => (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <circle cx="7.5" cy="7.5" r="5.8" stroke="currentColor" strokeWidth="1.2"/>
+      <path d="M4.4 7.7 6.5 9.7 10.7 5.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
   Bell: () => (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
       <path d="M7.5 1.5a4 4 0 0 1 4 4v3l1 2H3l1-2v-3a4 4 0 0 1 4-4Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
@@ -264,6 +290,12 @@ function Sidebar({
           to="/dashboard/courses"
           icon={<Icon.Chart />}
           label="Courses"
+        />
+        <span className="sv-sidebar__section-label">Occasion</span>
+        <NavItem
+          to="/events"
+          icon={<Icon.Calendar />}
+          label="Events"
         />
 
         <span className="sv-sidebar__section-label">Skill Swap</span>

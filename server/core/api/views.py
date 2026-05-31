@@ -20,6 +20,9 @@ from .models import (
     CoursePhase,
     CoursePhaseSection,
     CourseSubsection,
+    EventCoOrganizer,
+    EventParticipant,
+    InvitationToken,
     Invitation,
     InvitationStatus,
     Membership,
@@ -64,6 +67,7 @@ from .services.invitation_service import (
     reject_course_enrollment_invitation,
     reject_invitation,
 )
+from .modules.events.services import auto_accept_pending_event_invitation_for_user
 
 User = get_user_model()
 
@@ -173,6 +177,19 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = RegisterSerializer
 
+    def perform_create(self, serializer):
+        user = serializer.save()
+        pending_event_invitation = self.request.session.get('pending_event_invitation')
+        if pending_event_invitation:
+            try:
+                auto_accept_pending_event_invitation_for_user(
+                    user=user,
+                    token=pending_event_invitation.get('token'),
+                )
+                self.request.session.pop('pending_event_invitation', None)
+            except serializers.ValidationError:
+                pass
+
 
 class MeView(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer
@@ -238,6 +255,35 @@ class DashboardView(APIView):
             invited_email=request.user.email.lower(),
             status=InvitationStatus.PENDING,
         ).select_related('organization', 'course')
+        participant_invitations = (
+            EventParticipant.objects.filter(email=request.user.email.lower())
+            .select_related('event', 'event__organization', 'invited_by')
+            .prefetch_related(
+                Prefetch(
+                    'tokens',
+                    queryset=InvitationToken.objects.order_by('-created_at'),
+                    to_attr='prefetched_tokens',
+                )
+            )
+        )
+        co_organizer_invitations = (
+            EventCoOrganizer.objects.filter(invite_email=request.user.email.lower())
+            .select_related('event', 'event__organization', 'organization', 'invited_by_user')
+            .prefetch_related(
+                Prefetch(
+                    'tokens',
+                    queryset=InvitationToken.objects.order_by('-created_at'),
+                    to_attr='prefetched_tokens',
+                )
+            )
+        )
+
+        def get_latest_token(invitation):
+            tokens = getattr(invitation, 'prefetched_tokens', None)
+            if tokens is not None:
+                return tokens[0] if tokens else None
+            return invitation.tokens.order_by('-created_at').first()
+
         pending_invitations = [
             {
                 'id': str(invitation.id),
@@ -296,13 +342,56 @@ class DashboardView(APIView):
             }
             for invitation in course_enrollment_invitations
         ]
+        event_invitations = [
+            {
+                'id': str(invitation.id),
+                'token': get_latest_token(invitation).token if get_latest_token(invitation) else '',
+                'event_invitation_type': 'participant',
+                'event_id': str(invitation.event_id),
+                'event_name': invitation.event.title,
+                'organization_id': str(invitation.event.organization_id),
+                'organization_name': invitation.event.organization.name,
+                'invite_email': invitation.email,
+                'event_role': invitation.event_role,
+                'status': invitation.invite_status,
+                'date_sent': invitation.invited_at,
+                'expires_at': get_latest_token(invitation).expires_at if get_latest_token(invitation) else invitation.invited_at,
+                'responded_at': invitation.responded_at,
+                'event_start_datetime': invitation.event.start_datetime,
+                'event_end_datetime': invitation.event.end_datetime,
+                'event_location': invitation.event.location,
+            }
+            for invitation in participant_invitations
+        ] + [
+            {
+                'id': str(invitation.id),
+                'token': get_latest_token(invitation).token if get_latest_token(invitation) else '',
+                'event_invitation_type': 'co_organizer',
+                'event_id': str(invitation.event_id),
+                'event_name': invitation.event.title,
+                'organization_id': str(invitation.organization_id) if invitation.organization_id else '',
+                'organization_name': invitation.organization.name if invitation.organization_id else '',
+                'invite_email': invitation.invite_email,
+                'event_role': '',
+                'status': invitation.status,
+                'date_sent': invitation.invited_at,
+                'expires_at': get_latest_token(invitation).expires_at if get_latest_token(invitation) else invitation.invited_at,
+                'responded_at': invitation.responded_at,
+                'event_start_datetime': invitation.event.start_datetime,
+                'event_end_datetime': invitation.event.end_datetime,
+                'event_location': invitation.event.location,
+            }
+            for invitation in co_organizer_invitations
+        ]
         pending_invitations.sort(key=lambda invitation: invitation['date_sent'], reverse=True)
+        event_invitations.sort(key=lambda invitation: invitation['date_sent'], reverse=True)
         active_org = getattr(request.user.profile, 'active_organization', None)
         payload = {
             'user': request.user,
             'organizations': [membership.organization for membership in memberships],
             'memberships': memberships,
             'pending_invitations': pending_invitations,
+            'event_invitations': event_invitations,
             'active_organization': active_org,
         }
         return Response(DashboardSerializer(payload, context={'request': request}).data)

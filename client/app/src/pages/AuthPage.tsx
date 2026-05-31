@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { loginUser, registerUser } from '../lib/api'
 import '../styles/Auth.css'
@@ -69,7 +69,10 @@ export function AuthPage({
   onSuccess: (session: LoginResponse) => void
 }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const isLogin = mode === 'login'
+  const returnTo = searchParams.get('return_to')
+  const safeReturnTo = returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard'
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -106,7 +109,7 @@ export function AuthPage({
           password: form.password,
         })
         onSuccess(session)
-        navigate('/dashboard', { replace: true })
+        navigate(safeReturnTo, { replace: true })
         return
       }
 
@@ -125,7 +128,7 @@ export function AuthPage({
         password: payload.password,
       })
       onSuccess(session)
-      navigate('/dashboard', { replace: true })
+      navigate(safeReturnTo, { replace: true })
     } catch (submissionError) {
       setError(
         submissionError instanceof Error

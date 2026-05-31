@@ -55,6 +55,90 @@ export interface OrganizationOption {
   name: string
 }
 
+export type EventVisibility = 'private' | 'org_private' | 'public'
+export type EventStatus =
+  | 'draft'
+  | 'pending_approval'
+  | 'active'
+  | 'ongoing'
+  | 'completed'
+  | 'archived'
+  | 'rejected'
+export type EventRole =
+  | 'initiator'
+  | 'admin'
+  | 'attendee'
+  | 'speaker'
+  | 'volunteer'
+  | 'guest'
+export type EventInviteStatus = 'pending' | 'accepted' | 'declined'
+export type InviteOrigin = 'invited' | 'self_registered'
+export type CoOrganizerStatus = 'pending' | 'accepted' | 'declined'
+
+export interface EventModel {
+  id: string
+  organization: Organization
+  title: string
+  description: string
+  cover_image: string | null
+  location: string
+  start_datetime: string
+  end_datetime: string
+  timezone: string
+  visibility: EventVisibility
+  status: EventStatus
+  rejection_note: string | null
+  created_by: User
+  created_at: string
+  updated_at: string
+}
+
+export interface EventParticipantRecord {
+  id: string
+  token: string
+  event_id: string
+  event_name: string
+  organization_id: string
+  organization_name: string
+  email: string
+  user: User | null
+  event_role: EventRole
+  invite_status: EventInviteStatus
+  invite_origin: InviteOrigin
+  invited_by: User | null
+  invited_at: string
+  responded_at: string | null
+  accept_url: string
+  decline_url: string
+  registration_url: string
+  is_expired: boolean
+}
+
+export interface EventCoOrganizerRecord {
+  id: string
+  token: string
+  event_id: string
+  event_name: string
+  organization_id: string | null
+  organization_name: string
+  invite_email: string
+  status: CoOrganizerStatus
+  invited_by_user: User | null
+  invited_at: string
+  responded_at: string | null
+  accept_url: string
+  decline_url: string
+  registration_url: string
+  is_expired: boolean
+}
+
+export interface PaginationResponse<T> {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+}
+
 export interface CourseSection {
   id: string
   name: string
@@ -141,6 +225,25 @@ export interface InvitationDetail {
   custom_message: string
 }
 
+export interface EventInvitationDetail {
+  id: string
+  token: string
+  event_invitation_type: 'participant' | 'co_organizer'
+  event_id: string
+  event_name: string
+  organization_id: string
+  organization_name: string
+  invite_email: string
+  event_role: string
+  status: 'pending' | 'accepted' | 'declined'
+  date_sent: string
+  expires_at: string
+  responded_at: string | null
+  event_start_datetime: string
+  event_end_datetime: string
+  event_location: string
+}
+
 export interface DashboardData {
   user: User
   organizations: Organization[]
@@ -150,6 +253,7 @@ export interface DashboardData {
     role: string
   }>
   pending_invitations: InvitationDetail[]
+  event_invitations: EventInvitationDetail[]
   active_organization: Organization | null
   stats: {
     organization_count: number

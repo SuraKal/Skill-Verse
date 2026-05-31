@@ -71,6 +71,7 @@ urlpatterns = [
         CourseEnrollmentInvitationRejectView.as_view(),
         name='course-enrollment-invitation-reject',
     ),
+    path('', include('api.modules.events.urls')),
     path('', include('api.modules.skill_swap.urls')),
     path('', include(router.urls)),
 ]

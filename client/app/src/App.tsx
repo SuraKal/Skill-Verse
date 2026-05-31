@@ -15,9 +15,11 @@ import {
 import { DashboardPage } from './pages/DashboardPage'
 import { InvitationLandingPage } from './pages/InvitationLandingPage'
 import { LandingPage } from './pages/LandingPage'
+import { EventsDiscoverPage } from './pages/events/EventsDiscoverPage'
 import { CourseDetailPage } from './features/courses/pages/CourseDetailPage'
 import { CoursesPage } from './features/courses/pages/CoursesPage'
 import { OrgDashboardPage } from './features/organizations/pages/OrgDashboardPage'
+import { EventManagementPage, EventsPage } from './features/events/pages/EventsPages'
 import {
   SkillSwapChatPage,
   SkillSwapMatchesPage,
@@ -40,6 +42,27 @@ function RequireAuth({
 }
 
 function getDashboardChrome(pathname: string) {
+  if (pathname === '/invitations') {
+    return {
+      title: 'Invitations',
+      breadcrumb: 'Overview / Pending invitations',
+    }
+  }
+
+  if (pathname.startsWith('/events/')) {
+    return {
+      title: 'Event management',
+      breadcrumb: 'Events / Event management',
+    }
+  }
+
+  if (pathname === '/events') {
+    return {
+      title: 'Events',
+      breadcrumb: 'Events / Event workspace',
+    }
+  }
+
   if (pathname.startsWith('/dashboard/skill-swap/chat/')) {
     return {
       title: 'Skill Swap Chat',
@@ -143,6 +166,7 @@ function DashboardShell({
     () => getDashboardChrome(location.pathname),
     [location.pathname],
   )
+  const showNewOrg = location.pathname.startsWith('/dashboard/organizations')
 
   return (
     <DashboardLayout
@@ -150,7 +174,7 @@ function DashboardShell({
       topBarTitle={chrome.title}
       topBarBreadcrumb={chrome.breadcrumb}
       onSignOut={onSignOut}
-      onNewOrg={() => navigate('/dashboard/organizations?intent=create')}
+      onNewOrg={showNewOrg ? () => navigate('/dashboard/organizations?intent=create') : undefined}
     />
   )
 }
@@ -252,6 +276,20 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/organizations" element={<OrganizationsShowcasePage />} />
         <Route path="/invite/:invitationType/:token" element={<InvitationLandingPage token={token} />} />
+        <Route path="/events/discover" element={<EventsDiscoverPage token={token} />} />
+        <Route
+          path="/invitations"
+          element={
+            <RequireAuth token={token}>
+              <DashboardShell data={dashData} onSignOut={handleSignOut} />
+            </RequireAuth>
+          }
+        >
+          <Route
+            index
+            element={token ? <InvitationsPage token={token} onSession={handleSession} /> : null}
+          />
+        </Route>
         <Route
           path="/login"
           element={
@@ -327,6 +365,17 @@ export default function App() {
             element={token ? <SettingsPage token={token} onSession={handleSession} /> : null}
           />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Route>
+        <Route
+          path="/events"
+          element={
+            <RequireAuth token={token}>
+              <DashboardShell data={dashData} onSignOut={handleSignOut} />
+            </RequireAuth>
+          }
+        >
+          <Route index element={token ? <EventsPage token={token} /> : null} />
+          <Route path=":eventId" element={token ? <EventManagementPage token={token} /> : null} />
         </Route>
         <Route
           path="*"

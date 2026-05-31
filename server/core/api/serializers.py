@@ -862,11 +862,31 @@ class PendingInvitationSerializer(serializers.Serializer):
     custom_message = serializers.CharField(required=False, allow_blank=True)
 
 
+class EventInvitationSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    token = serializers.CharField()
+    event_invitation_type = serializers.CharField()
+    event_id = serializers.CharField()
+    event_name = serializers.CharField()
+    organization_id = serializers.CharField(required=False, allow_blank=True)
+    organization_name = serializers.CharField(required=False, allow_blank=True)
+    invite_email = serializers.EmailField()
+    event_role = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.CharField()
+    date_sent = serializers.DateTimeField()
+    expires_at = serializers.DateTimeField()
+    responded_at = serializers.DateTimeField(required=False, allow_null=True)
+    event_start_datetime = serializers.DateTimeField()
+    event_end_datetime = serializers.DateTimeField()
+    event_location = serializers.CharField()
+
+
 class DashboardSerializer(serializers.Serializer):
     user = UserSerializer()
     organizations = OrganizationSerializer(many=True)
     memberships = serializers.SerializerMethodField()
     pending_invitations = PendingInvitationSerializer(many=True)
+    event_invitations = EventInvitationSerializer(many=True)
     active_organization = OrganizationSerializer(allow_null=True)
     stats = serializers.SerializerMethodField()
 
@@ -882,12 +902,15 @@ class DashboardSerializer(serializers.Serializer):
 
     def get_stats(self, obj):
         memberships = list(obj['memberships'])
+        event_invitations = list(obj.get('event_invitations', []))
         return {
             'organization_count': len(memberships),
             'managed_organization_count': len(
                 [m for m in memberships if m.role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}]
             ),
-            'pending_invitation_count': len(obj['pending_invitations']),
+            'pending_invitation_count': len(obj['pending_invitations']) + len(
+                [invitation for invitation in event_invitations if invitation['status'] == 'pending']
+            ),
         }
 
 

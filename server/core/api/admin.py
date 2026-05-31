@@ -1,32 +1,5 @@
-from django.contrib import admin
+"""Admin bootstrap that loads feature-specific admin registrations."""
 
-from .models import Invitation, Membership, Organization, UserProfile
-
-
-@admin.register(UserProfile)
-class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'title', 'active_organization', 'updated_at')
-    search_fields = ('user__username', 'user__email', 'title')
-
-
-@admin.register(Organization)
-class OrganizationAdmin(admin.ModelAdmin):
-    list_display = ('name', 'owner', 'is_verified', 'email', 'phone', 'created_at')
-    search_fields = ('name', 'email', 'phone', 'owner__email')
-    list_filter = ('is_verified',)
-
-
-@admin.register(Membership)
-class MembershipAdmin(admin.ModelAdmin):
-    list_display = ('user', 'organization', 'role', 'created_at')
-    list_filter = ('role',)
-    search_fields = ('user__email', 'organization__name')
-
-
-@admin.register(Invitation)
-class InvitationAdmin(admin.ModelAdmin):
-    list_display = ('invited_email', 'organization', 'role', 'status', 'date_sent', 'expires_at')
-    list_filter = ('role', 'status')
-    search_fields = ('invited_email', 'organization__name', 'invited_by__email')
-
-# Register your models here.
+from .modules.organizations import admin as _organization_admin  # noqa: F401
+from .modules.courses import admin as _course_admin  # noqa: F401
+from .modules.skill_swap import admin as _skill_swap_admin  # noqa: F401

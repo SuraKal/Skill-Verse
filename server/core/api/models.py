@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.core.validators import MinLengthValidator
 from django.db import models
 from django.utils import timezone
@@ -120,6 +121,7 @@ class Course(TimeStampedModel):
         blank=True,
     )
 
+    is_visible = models.BooleanField(default=True)
     privacy = models.CharField(max_length=20, choices=CoursePrivacy.choices, default=CoursePrivacy.PRIVATE)
     price_type = models.CharField(max_length=20, choices=CoursePriceType.choices, default=CoursePriceType.FREE)
 
@@ -128,6 +130,166 @@ class Course(TimeStampedModel):
 
     def __str__(self):
         return self.title
+
+
+class CourseSection(TimeStampedModel):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    name = models.CharField(max_length=255)
+
+    class Meta:
+        ordering = ['name', 'created_at']
+
+    def __str__(self):
+        return self.name
+
+
+class CoursePhase(TimeStampedModel):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='phases',
+    )
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+    sections = models.ManyToManyField(
+        CourseSection,
+        through='CoursePhaseSection',
+        related_name='phases',
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ['order', 'created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['course', 'order'], name='unique_course_phase_order'),
+        ]
+
+    def __str__(self):
+        return f'{self.course.title}: {self.name}'
+
+
+class CoursePhaseSection(TimeStampedModel):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    phase = models.ForeignKey(
+        CoursePhase,
+        on_delete=models.CASCADE,
+        related_name='phase_sections',
+    )
+    section = models.ForeignKey(
+        CourseSection,
+        on_delete=models.CASCADE,
+        related_name='phase_links',
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['phase', 'order'], name='unique_course_phase_section_order'),
+            models.UniqueConstraint(fields=['phase', 'section'], name='unique_course_phase_section'),
+        ]
+
+    def __str__(self):
+        return f'{self.phase.name}: {self.section.name}'
+
+
+class CourseSubsection(TimeStampedModel):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    course_section = models.ForeignKey(
+        CoursePhaseSection,
+        on_delete=models.CASCADE,
+        related_name='subsections',
+    )
+    name = models.CharField(max_length=255)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['course_section', 'order'], name='unique_course_subsection_order'),
+        ]
+
+    def __str__(self):
+        return f'{self.course_section.section.name}: {self.name}'
+
+
+class CourseSubsectionVideo(TimeStampedModel):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    subsection = models.ForeignKey(
+        CourseSubsection,
+        on_delete=models.CASCADE,
+        related_name='videos',
+    )
+    title = models.CharField(max_length=255)
+    embed_code = models.TextField()
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['subsection', 'order'], name='unique_course_subsection_video_order'),
+        ]
+
+    def __str__(self):
+        return f'{self.subsection.name}: {self.title}'
+
+
+class CourseSubsectionNote(TimeStampedModel):
+    MAX_FILE_SIZE = 5 * 1024 * 1024
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    subsection = models.ForeignKey(
+        CourseSubsection,
+        on_delete=models.CASCADE,
+        related_name='notes',
+    )
+    title = models.CharField(max_length=255, blank=True)
+    file = models.FileField(upload_to='course_notes/')
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['subsection', 'order'], name='unique_course_subsection_note_order'),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.file and self.file.size > self.MAX_FILE_SIZE:
+            raise ValidationError({'file': 'File size must not exceed 5MB.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.subsection.name}: {self.title or self.file.name}'
 
 
 class CourseInstructorAssignment(TimeStampedModel):
@@ -346,4 +508,84 @@ class CourseEnrollmentInvitation(TimeStampedModel):
     def is_expired(self):
         return timezone.now() >= self.expires_at
 
-# Create your models here.
+
+class SkillSwapProfile(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='skill_swap_profile')
+    teach_skills = models.TextField(blank=True)
+    learn_skills = models.TextField(blank=True)
+    summary = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['user__first_name', 'user__email']
+
+    def __str__(self):
+        return f'{self.user.get_username()} skill swap profile'
+
+
+class SkillMatch(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    teaching_user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='skill_swap_teaching_matches',
+    )
+    learning_user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='skill_swap_learning_matches',
+    )
+    matched_skill = models.CharField(max_length=120)
+    teaching_text = models.CharField(max_length=255, blank=True)
+    learning_text = models.CharField(max_length=255, blank=True)
+    match_score = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-updated_at', 'matched_skill']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['teaching_user', 'learning_user', 'matched_skill'],
+                name='unique_skill_swap_match',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.teaching_user.get_username()} teaches {self.matched_skill} to {self.learning_user.get_username()}'
+
+
+class SkillChatThread(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    match = models.OneToOneField(
+        SkillMatch,
+        on_delete=models.CASCADE,
+        related_name='thread',
+    )
+    last_message_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-last_message_at', '-created_at']
+
+    def __str__(self):
+        return f'Chat thread for {self.match.matched_skill}'
+
+
+class SkillChatMessage(TimeStampedModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    thread = models.ForeignKey(
+        SkillChatThread,
+        on_delete=models.CASCADE,
+        related_name='messages',
+    )
+    sender = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='skill_swap_messages',
+    )
+    body = models.TextField()
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'{self.sender.get_username()} in {self.thread_id}'

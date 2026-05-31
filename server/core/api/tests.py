@@ -1,5 +1,8 @@
+import json
+
 from django.test import override_settings
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -7,8 +10,15 @@ from rest_framework.test import APITestCase
 from .models import (
     Course,
     CourseCategory,
+    CourseEnrollmentAssignment,
+    CourseEnrollmentInvitation,
     CourseInstructorAssignment,
     CourseInstructorInvitation,
+    CoursePhase,
+    CourseSubsection,
+    SkillChatThread,
+    SkillMatch,
+    SkillSwapProfile,
     Invitation,
     InvitationStatus,
     Membership,
@@ -89,14 +99,62 @@ class PlatformFlowTests(APITestCase):
             {
                 'title': 'Org Operations 101',
                 'description': 'Intro course for the team.',
+                'is_visible': True,
                 'category_ids': [str(category.id)],
                 'organization_ids': [str(organization.id)],
+                'phase_data': json.dumps([
+                    {
+                        'name': 'Course Preparation Week',
+                        'description': 'Get everyone ready to begin.',
+                        'order': 0,
+                        'sections': [
+                            {
+                                'name': 'Orientation',
+                                'order': 0,
+                                'subsections': [
+                                    {
+                                        'name': 'Basic Computer Skills - Part I',
+                                        'order': 0,
+                                        'videos': [
+                                            {
+                                                'title': 'Intro video',
+                                                'embed_code': '<iframe src="https://www.youtube.com/embed/test-video"></iframe>',
+                                                'order': 0,
+                                            }
+                                        ],
+                                        'notes': [
+                                            {
+                                                'title': 'Lesson note',
+                                                'order': 0,
+                                                'file_field': 'note_upload_test',
+                                            }
+                                        ],
+                                    }
+                                ],
+                            },
+                            {'name': 'Tool setup', 'order': 1},
+                        ],
+                    }
+                ]),
+                'note_upload_test': SimpleUploadedFile(
+                    'lesson-note.txt',
+                    b'course note content',
+                    content_type='text/plain',
+                ),
             },
-            format='json',
+            format='multipart',
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(Course.objects.filter(title='Org Operations 101', organizations=organization).exists())
+        course = Course.objects.get(title='Org Operations 101')
+        self.assertTrue(course.is_visible)
+        self.assertEqual(course.phases.count(), 1)
+        self.assertEqual(course.phases.first().phase_sections.count(), 2)
+        first_subsection = CourseSubsection.objects.filter(course_section__phase__course=course).first()
+        self.assertIsNotNone(first_subsection)
+        self.assertEqual(first_subsection.videos.count(), 1)
+        self.assertEqual(first_subsection.notes.count(), 1)
 
     def test_member_cannot_create_course(self):
         organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
@@ -191,6 +249,65 @@ class PlatformFlowTests(APITestCase):
         self.assertEqual(response.data['stats']['pending_instructor_invitation_count'], 1)
         self.assertTrue(response.data['permissions']['can_invite_instructors'])
 
+    def test_instructor_course_management_hides_invitation_lists(self):
+        organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
+        Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
+        course = Course.objects.create(title='Instructor Access Course', created_by=self.user)
+        course.organizations.add(organization)
+
+        instructor = User.objects.create_user(
+            username='instructor-only',
+            email='instructor-only@example.com',
+            password='StrongPassword123!',
+        )
+        CourseInstructorAssignment.objects.create(course=course, user=instructor, invited_by=self.user)
+
+        token_response = self.client.post(
+            reverse('auth-token'),
+            {'email': instructor.email, 'password': 'StrongPassword123!'},
+            format='json',
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token_response.data['access']}")
+
+        response = self.client.get(reverse('course-management', kwargs={'pk': course.id}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['permissions']['can_manage_course'])
+        self.assertEqual(response.data['stats']['instructor_count'], 1)
+        self.assertEqual(response.data['instructor_invitations'], [])
+        self.assertEqual(response.data['enrollment_invitations'], [])
+        self.assertEqual(response.data['enrollments'], [])
+
+    def test_instructor_course_management_hides_rosters_in_organization_view(self):
+        organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
+        Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
+        course = Course.objects.create(title='Instructor Access Course', created_by=self.user)
+        course.organizations.add(organization)
+
+        instructor = User.objects.create_user(
+            username='instructor-org-view',
+            email='instructor-org-view@example.com',
+            password='StrongPassword123!',
+        )
+        CourseInstructorAssignment.objects.create(course=course, user=instructor, invited_by=self.user)
+
+        token_response = self.client.post(
+            reverse('auth-token'),
+            {'email': instructor.email, 'password': 'StrongPassword123!'},
+            format='json',
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token_response.data['access']}")
+
+        response = self.client.get(
+            reverse('organization-course-management', kwargs={'pk': organization.id, 'course_id': course.id})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['can_manage_course'])
+        self.assertEqual(response.data['stats']['instructor_count'], 1)
+        self.assertEqual(response.data['instructors'], [])
+        self.assertEqual(response.data['enrollments'], [])
+
     def test_manager_can_invite_course_instructor(self):
         organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
         Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
@@ -209,6 +326,34 @@ class PlatformFlowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
             CourseInstructorInvitation.objects.filter(course=course, invited_email='teacher@example.com').exists()
+        )
+
+    def test_manager_cannot_invite_existing_instructor_as_student(self):
+        organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
+        Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
+        course = Course.objects.create(title='Platform Foundations')
+        course.organizations.add(organization)
+
+        instructor = User.objects.create_user(
+            username='teacher-role',
+            email='teacher-role@example.com',
+            password='StrongPassword123!',
+        )
+        CourseInstructorAssignment.objects.create(course=course, user=instructor, invited_by=self.user)
+
+        response = self.client.post(
+            reverse('course-enrollment-invitations', kwargs={'pk': course.id}),
+            {
+                'invited_email': instructor.email,
+                'custom_message': 'Please join as a student.',
+                'organization_id': str(organization.id),
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            CourseEnrollmentInvitation.objects.filter(course=course, invited_email=instructor.email).exists()
         )
 
     def test_course_instructor_invitation_acceptance_creates_assignment(self):
@@ -245,6 +390,31 @@ class PlatformFlowTests(APITestCase):
         invitation.refresh_from_db()
         self.assertEqual(invitation.status, InvitationStatus.ACCEPTED)
         self.assertTrue(CourseInstructorAssignment.objects.filter(course=course, user=invitee).exists())
+
+    def test_instructor_cannot_enroll_in_course(self):
+        organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
+        Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
+        course = Course.objects.create(title='Instructor Access Course')
+        course.organizations.add(organization)
+
+        instructor = User.objects.create_user(
+            username='instructor-enroll',
+            email='instructor-enroll@example.com',
+            password='StrongPassword123!',
+        )
+        CourseInstructorAssignment.objects.create(course=course, user=instructor, invited_by=self.user)
+
+        token_response = self.client.post(
+            reverse('auth-token'),
+            {'email': instructor.email, 'password': 'StrongPassword123!'},
+            format='json',
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token_response.data['access']}")
+
+        response = self.client.post(reverse('course-enroll', kwargs={'pk': course.id}), format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(CourseEnrollmentAssignment.objects.filter(course=course, user=instructor).exists())
 
     def test_global_course_workspace_returns_all_and_personal_course_signals(self):
         organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
@@ -284,6 +454,74 @@ class PlatformFlowTests(APITestCase):
         self.assertFalse(public_payload['can_manage'])
         self.assertTrue(teaching_payload['is_instructor'])
 
+    def test_hidden_course_only_surfaces_for_privileged_users(self):
+        owner_org = Organization.objects.create(owner=self.user, name='Hidden Ops')
+        Membership.objects.create(user=self.user, organization=owner_org, role=OrganizationRole.CREATOR)
+        hidden_course = Course.objects.create(
+            title='Hidden Course',
+            created_by=self.user,
+            is_visible=False,
+        )
+        hidden_course.organizations.add(owner_org)
+
+        outsider = User.objects.create_user(
+            username='outsider',
+            email='outsider@example.com',
+            password='StrongPassword123!',
+        )
+        outsider_token_response = self.client.post(
+            reverse('auth-token'),
+            {'email': outsider.email, 'password': 'StrongPassword123!'},
+            format='json',
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {outsider_token_response.data['access']}")
+        outsider_response = self.client.get(reverse('course-list'))
+
+        self.assertEqual(outsider_response.status_code, status.HTTP_200_OK)
+        self.assertFalse(any(course['title'] == 'Hidden Course' for course in outsider_response.data['courses']))
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
+        owner_response = self.client.get(reverse('course-list'))
+        self.assertTrue(any(course['title'] == 'Hidden Course' for course in owner_response.data['courses']))
+
+    def test_course_management_includes_phases_and_sections(self):
+        organization = Organization.objects.create(owner=self.user, name='Outline Org')
+        Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
+        course = Course.objects.create(title='Structured Course', created_by=self.user)
+        course.organizations.add(organization)
+        phase = CoursePhase.objects.create(
+            course=course,
+            name='Week 1',
+            description='Foundations',
+            order=0,
+        )
+        section = phase.sections.create(name='Basic Computer Skills')
+        phase.phase_sections.filter(section=section).update(order=0)
+
+        subsection = CourseSubsection.objects.create(
+            course_section=phase.phase_sections.get(section=section),
+            name='Basic Computer Skills - Part I',
+            order=0,
+        )
+        subsection.videos.create(
+            title='Walkthrough',
+            embed_code='<iframe src="https://www.youtube.com/embed/test-video"></iframe>',
+            order=0,
+        )
+
+        response = self.client.get(reverse('course-management', kwargs={'pk': course.id}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['course']['phases'][0]['name'], 'Week 1')
+        self.assertEqual(
+            response.data['course']['phases'][0]['sections'][0]['section']['name'],
+            'Basic Computer Skills',
+        )
+        self.assertEqual(
+            response.data['course']['phases'][0]['sections'][0]['subsections'][0]['name'],
+            'Basic Computer Skills - Part I',
+        )
+
     def test_instructor_without_organization_membership_can_open_course_management(self):
         organization = Organization.objects.create(owner=self.user, name='Orbit Labs')
         Membership.objects.create(user=self.user, organization=organization, role=OrganizationRole.CREATOR)
@@ -310,3 +548,142 @@ class PlatformFlowTests(APITestCase):
         self.assertEqual(response.data['course']['title'], 'Instructor Access Course')
         self.assertEqual(response.data['permissions']['role'], 'instructor')
         self.assertFalse(response.data['permissions']['can_manage_course'])
+
+    def test_skill_swap_profile_update_creates_text_match(self):
+        learner = User.objects.create_user(
+            username='learner',
+            email='learner@example.com',
+            password='StrongPassword123!',
+        )
+        SkillSwapProfile.objects.create(
+            user=learner,
+            teach_skills='Spanish',
+            learn_skills='Guitar',
+            summary='Looking for a guitar exchange.',
+        )
+
+        response = self.client.patch(
+            reverse('skill-swap-profile'),
+            {
+                'teach_skills': 'Guitar, Piano',
+                'learn_skills': 'Python',
+                'summary': 'Happy to trade music lessons.',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            SkillMatch.objects.filter(
+                teaching_user=self.user,
+                learning_user=learner,
+                matched_skill='Guitar',
+                is_active=True,
+            ).exists()
+        )
+        match = SkillMatch.objects.get(
+            teaching_user=self.user,
+            learning_user=learner,
+            matched_skill='Guitar',
+        )
+        self.assertTrue(SkillChatThread.objects.filter(match=match).exists())
+
+        dashboard_response = self.client.get(reverse('skill-swap-dashboard'))
+        self.assertEqual(dashboard_response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(dashboard_response.data['stats']['teach_count'], 1)
+        self.assertGreaterEqual(dashboard_response.data['stats']['learn_count'], 1)
+        self.assertTrue(
+            any(item['matched_skill'] == 'Guitar' for item in dashboard_response.data['matches'])
+        )
+
+        profile_response = self.client.get(reverse('skill-swap-profile'))
+        self.assertEqual(profile_response.status_code, status.HTTP_200_OK)
+        self.assertIn('teach_skills_list', profile_response.data)
+        self.assertIn('learn_skills_list', profile_response.data)
+
+    def test_skill_swap_profile_get_creates_profile_for_authenticated_user(self):
+        response = self.client.get(reverse('skill-swap-profile'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(SkillSwapProfile.objects.filter(user=self.user).exists())
+        self.assertEqual(response.data['user']['email'], self.user.email)
+
+    def test_skill_swap_chat_threads_are_private_to_participants(self):
+        learner = User.objects.create_user(
+            username='skill-learner',
+            email='skill-learner@example.com',
+            password='StrongPassword123!',
+        )
+        SkillSwapProfile.objects.create(
+            user=self.user,
+            teach_skills='Guitar',
+            learn_skills='Python',
+        )
+        SkillSwapProfile.objects.create(
+            user=learner,
+            teach_skills='Python',
+            learn_skills='Guitar',
+        )
+        match = SkillMatch.objects.create(
+            teaching_user=self.user,
+            learning_user=learner,
+            matched_skill='Guitar',
+        )
+        thread = SkillChatThread.objects.create(match=match)
+
+        outsider = User.objects.create_user(
+            username='skill-outsider',
+            email='skill-outsider@example.com',
+            password='StrongPassword123!',
+        )
+        outsider_token = self.client.post(
+            reverse('auth-token'),
+            {'email': outsider.email, 'password': 'StrongPassword123!'},
+            format='json',
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {outsider_token.data['access']}")
+
+        response = self.client.get(
+            reverse('skill-swap-thread-messages', kwargs={'thread_id': thread.id})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_skill_swap_threads_and_matches_list_for_participants(self):
+        learner = User.objects.create_user(
+            username='skill-list-learner',
+            email='skill-list-learner@example.com',
+            password='StrongPassword123!',
+        )
+        SkillSwapProfile.objects.create(
+            user=self.user,
+            teach_skills='Guitar',
+            learn_skills='Python',
+            summary='Music and code.',
+        )
+        SkillSwapProfile.objects.create(
+            user=learner,
+            teach_skills='Python',
+            learn_skills='Guitar',
+            summary='Code and music.',
+        )
+        match = SkillMatch.objects.create(
+            teaching_user=self.user,
+            learning_user=learner,
+            matched_skill='Guitar',
+            teaching_text='Guitar',
+            learning_text='Guitar',
+            match_score=100,
+            is_active=True,
+        )
+        SkillChatThread.objects.create(match=match)
+
+        matches_response = self.client.get(reverse('skill-swap-matches'))
+        self.assertEqual(matches_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(matches_response.data), 1)
+        self.assertEqual(matches_response.data[0]['matched_skill'], 'Guitar')
+
+        threads_response = self.client.get(reverse('skill-swap-threads'))
+        self.assertEqual(threads_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(threads_response.data), 1)
+        self.assertEqual(threads_response.data[0]['match']['matched_skill'], 'Guitar')

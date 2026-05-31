@@ -129,6 +129,8 @@ def create_course_enrollment_invitation(
     frontend_url,
 ):
     normalized_email = invited_email.lower().strip()
+    if CourseInstructorAssignment.objects.filter(course=course, user__email=normalized_email).exists():
+        raise serializers.ValidationError('This user is already an instructor for the course.')
     if CourseEnrollmentAssignment.objects.filter(course=course, user__email=normalized_email).exists():
         raise serializers.ValidationError(
             'This user is already enrolled in the course.')
@@ -196,6 +198,8 @@ def accept_course_enrollment_invitation(*, invitation, user):
         raise serializers.ValidationError('This invitation has expired.')
     if invitation.invited_email.lower() != user.email.lower():
         raise serializers.ValidationError('This invitation was sent to a different email address.')
+    if CourseInstructorAssignment.objects.filter(course=invitation.course, user=user).exists():
+        raise serializers.ValidationError('This user is already an instructor for the course.')
 
     assignment, _ = CourseEnrollmentAssignment.objects.update_or_create(
         course=invitation.course,

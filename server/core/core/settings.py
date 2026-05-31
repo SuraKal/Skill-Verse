@@ -62,7 +62,7 @@ INSTALLED_APPS = [
     'anymail',
     'django_cleanup.apps.CleanupConfig',
 
-    'api',
+    'api.apps.ApiConfig',
 ]
 
 MIDDLEWARE = [

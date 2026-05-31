@@ -2,9 +2,10 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from .modules.courses.views import CourseViewSet
+from .modules.organizations.views import OrganizationViewSet
 from .views import (
     AuthRoutesView,
-    CourseViewSet,
     CourseInstructorInvitationAcceptView,
     CourseInstructorInvitationDetailView,
     CourseInstructorInvitationRejectView,
@@ -70,5 +71,6 @@ urlpatterns = [
         CourseEnrollmentInvitationRejectView.as_view(),
         name='course-enrollment-invitation-reject',
     ),
+    path('', include('api.modules.skill_swap.urls')),
     path('', include(router.urls)),
 ]

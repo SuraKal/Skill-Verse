@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, serializers, status, viewsets
@@ -17,7 +17,9 @@ from .models import (
     CourseEnrollmentAssignment,
     CourseInstructorInvitation,
     CourseEnrollmentInvitation,
-    CoursePrivacy,
+    CoursePhase,
+    CoursePhaseSection,
+    CourseSubsection,
     Invitation,
     InvitationStatus,
     Membership,
@@ -91,6 +93,41 @@ def get_course_role_for_user(*, user, course, manageable_ids):
 
 def user_can_manage_course(*, user, course, manageable_ids):
     return course.created_by_id == user.id or course.organizations.filter(id__in=manageable_ids).exists()
+
+
+def user_can_view_hidden_course(*, user, course, manageable_ids):
+    return (
+        user_can_manage_course(user=user, course=course, manageable_ids=manageable_ids)
+        or course.created_by_id == user.id
+        or course.instructor_assignments.filter(user=user).exists()
+    )
+
+
+def course_is_visible_to_user(*, user, course, manageable_ids):
+    return course.is_visible or user_can_view_hidden_course(
+        user=user,
+        course=course,
+        manageable_ids=manageable_ids,
+    )
+
+
+def course_phase_prefetch():
+    return Prefetch(
+        'phases',
+        queryset=CoursePhase.objects.prefetch_related(
+            Prefetch(
+                'phase_sections',
+                queryset=CoursePhaseSection.objects.select_related('section').prefetch_related(
+                    Prefetch(
+                        'subsections',
+                        queryset=CourseSubsection.objects.prefetch_related('videos', 'notes').order_by('order', 'created_at'),
+                        to_attr='prefetched_subsections',
+                    )
+                ).order_by('order', 'created_at'),
+                to_attr='prefetched_phase_sections',
+            )
+        ).order_by('order', 'created_at'),
+    )
 
 
 class SkillVerseTokenSerializer(TokenObtainPairSerializer):
@@ -170,8 +207,13 @@ class PublicBootstrapView(APIView):
                 },
                 {
                     'name': 'Community',
-                    'status': 'planned',
+                    'status': 'live',
                     'description': 'Conversation and collaboration surfaces tied to user identity.',
+                },
+                {
+                    'name': 'Skill Swap',
+                    'status': 'live',
+                    'description': 'Text-based skill matching and private chat between teachers and learners.',
                 },
             ],
         }
@@ -310,7 +352,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         memberships = organization.memberships.select_related('user').order_by('role', 'user__first_name', 'user__email')
         invitations = organization.invitations.select_related('invited_by').order_by('-date_sent')
         courses = (
-            organization.courses.prefetch_related('categories', 'organizations')
+            organization.courses.prefetch_related('categories', 'organizations', course_phase_prefetch())
             .order_by('title')
         )
         manageable_organizations = Organization.objects.filter(
@@ -360,7 +402,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         membership = Membership.objects.get(user=request.user, organization=organization)
 
         if request.method == 'GET':
-            courses = organization.courses.prefetch_related('categories', 'organizations').order_by('title')
+            courses = organization.courses.prefetch_related(
+                'categories',
+                'organizations',
+                course_phase_prefetch(),
+            ).order_by('title')
             return Response(CourseSerializer(courses, many=True, context={'request': request}).data)
 
         if membership.role not in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}:
@@ -389,7 +435,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             )
 
         course = get_object_or_404(
-            Course.objects.prefetch_related('categories', 'organizations'),
+            Course.objects.prefetch_related('categories', 'organizations', course_phase_prefetch()),
             id=course_id,
             organizations=organization,
         )
@@ -421,19 +467,43 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 'organizations',
                 'instructor_assignments__user',
                 'instructor_invitations__invited_by',
+                'enrollment_assignments__user',
+                'enrollment_invitations__invited_by',
+                course_phase_prefetch(),
             ),
             id=course_id,
             organizations=organization,
         )
+        can_manage_course = membership.role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}
+        instructor_count = course.instructor_assignments.count()
+        enrollment_count = course.enrollment_assignments.count()
         payload = {
             'course': course,
-            'instructors': course.instructor_assignments.select_related('user').all(),
-            'enrollments': course.enrollment_assignments.select_related('user').all(),
-            'instructor_invitations': course.instructor_invitations.select_related('invited_by').all(),
-            'enrollment_invitations': course.enrollment_invitations.select_related('invited_by').all(),
-            'manageable_organizations': [organization],
+            'instructors': (
+                course.instructor_assignments.select_related('user').all()
+                if can_manage_course
+                else []
+            ),
+            'enrollments': (
+                course.enrollment_assignments.select_related('user').all()
+                if can_manage_course
+                else []
+            ),
+            'instructor_invitations': (
+                course.instructor_invitations.select_related('invited_by').all()
+                if can_manage_course
+                else []
+            ),
+            'enrollment_invitations': (
+                course.enrollment_invitations.select_related('invited_by').all()
+                if can_manage_course
+                else []
+            ),
+            'manageable_organizations': [organization] if can_manage_course else [],
             'role': membership.role,
-            'can_manage_course': membership.role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER},
+            'can_manage_course': can_manage_course,
+            'instructor_count': instructor_count,
+            'enrollment_count': enrollment_count,
         }
         return Response(
             CourseDetailManagementSerializer(
@@ -458,12 +528,15 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             id=course_id,
             organizations=organization,
         )
+        can_manage_course = membership.role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}
 
         if request.method == 'GET':
+            if not can_manage_course:
+                raise serializers.ValidationError('You do not have permission to view instructor invitations for this course.')
             invitations = course.instructor_invitations.select_related('invited_by').all()
             return Response(CourseInstructorInvitationSerializer(invitations, many=True).data)
 
-        if membership.role not in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}:
+        if not can_manage_course:
             raise serializers.ValidationError('You do not have permission to invite instructors to this course.')
 
         serializer = CourseInstructorInvitationSerializer(
@@ -490,12 +563,15 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             id=course_id,
             organizations=organization,
         )
+        can_manage_course = membership.role in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}
 
         if request.method == 'GET':
+            if not can_manage_course:
+                raise serializers.ValidationError('You do not have permission to view enrollment invitations for this course.')
             invitations = course.enrollment_invitations.select_related('invited_by').all()
             return Response(CourseEnrollmentInvitationSerializer(invitations, many=True).data)
 
-        if membership.role not in {OrganizationRole.CREATOR, OrganizationRole.MANAGER}:
+        if not can_manage_course:
             raise serializers.ValidationError('You do not have permission to invite students to this course.')
 
         serializer = CourseEnrollmentInvitationSerializer(
@@ -515,7 +591,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
 
 class CourseViewSet(viewsets.ModelViewSet):
-    queryset = Course.objects.select_related('created_by').prefetch_related('categories', 'organizations').annotate(
+    queryset = Course.objects.select_related('created_by').prefetch_related(
+        'categories',
+        'organizations',
+        course_phase_prefetch(),
+    ).annotate(
         instructor_count=Count('instructor_assignments', distinct=True)
     )
     serializer_class = CourseSerializer
@@ -544,17 +624,15 @@ class CourseViewSet(viewsets.ModelViewSet):
         manageable_course_ids = {
             course.id for course in courses if course.created_by_id == request.user.id or course.organizations.filter(id__in=manageable_ids).exists()
         }
+        visible_courses = [
+            course for course in courses
+            if course_is_visible_to_user(user=request.user, course=course, manageable_ids=manageable_ids)
+        ]
         payload = {
-            'courses': courses,
+            'courses': visible_courses,
             'course_categories': CourseCategory.objects.filter(is_active=True).order_by('name'),
             'manageable_organizations': manageable_organizations,
-            'all_course_count': sum(
-                1 for c in courses
-                if c.privacy == CoursePrivacy.PUBLIC
-                or c.id in created_course_ids
-                or c.id in instructor_course_ids
-                or c.id in member_course_ids
-            ),
+            'all_course_count': len(visible_courses),
             'created_course_count': len(created_course_ids),
             'teaching_course_count': len(instructor_course_ids),
             'enrolled_course_count': len(enrollment_ids),
@@ -619,15 +697,38 @@ class CourseViewSet(viewsets.ModelViewSet):
             course.organizations.filter(id__in=get_manageable_organization_ids_for_user(request.user))
         )
         manageable_ids = {organization.id for organization in manageable_organizations}
+        if not course_is_visible_to_user(user=request.user, course=course, manageable_ids=manageable_ids):
+            raise serializers.ValidationError('You do not have permission to view this course.')
+        can_manage_course = user_can_manage_course(user=request.user, course=course, manageable_ids=manageable_ids)
+        instructor_count = course.instructor_assignments.count()
+        enrollment_count = course.enrollment_assignments.count()
         payload = {
             'course': course,
-            'instructors': course.instructor_assignments.select_related('user').all(),
-            'instructor_invitations': course.instructor_invitations.select_related('invited_by').all(),
-            'enrollments': course.enrollment_assignments.select_related('user').all(),
-            'enrollment_invitations': course.enrollment_invitations.select_related('invited_by').all(),
-            'manageable_organizations': manageable_organizations,
+            'instructors': (
+                course.instructor_assignments.select_related('user').all()
+                if can_manage_course
+                else []
+            ),
+            'instructor_invitations': (
+                course.instructor_invitations.select_related('invited_by').all()
+                if can_manage_course
+                else []
+            ),
+            'enrollments': (
+                course.enrollment_assignments.select_related('user').all()
+                if can_manage_course
+                else []
+            ),
+            'enrollment_invitations': (
+                course.enrollment_invitations.select_related('invited_by').all()
+                if can_manage_course
+                else []
+            ),
+            'manageable_organizations': manageable_organizations if can_manage_course else [],
             'role': get_course_role_for_user(user=request.user, course=course, manageable_ids=manageable_ids),
-            'can_manage_course': user_can_manage_course(user=request.user, course=course, manageable_ids=manageable_ids),
+            'can_manage_course': can_manage_course,
+            'instructor_count': instructor_count,
+            'enrollment_count': enrollment_count,
         }
         return Response(
             CourseDetailManagementSerializer(
@@ -649,12 +750,15 @@ class CourseViewSet(viewsets.ModelViewSet):
         manageable_organizations = list(
             course.organizations.filter(id__in=get_manageable_organization_ids_for_user(request.user))
         )
+        can_manage_course = bool(manageable_organizations) or course.created_by_id == request.user.id
 
         if request.method == 'GET':
+            if not can_manage_course:
+                raise serializers.ValidationError('You do not have permission to view instructor invitations for this course.')
             invitations = course.instructor_invitations.select_related('invited_by').all()
             return Response(CourseInstructorInvitationSerializer(invitations, many=True).data)
 
-        if not manageable_organizations and course.created_by_id != request.user.id:
+        if not can_manage_course:
             raise serializers.ValidationError('You do not have permission to invite instructors to this course.')
 
         selected_organization = manageable_organizations[0] if manageable_organizations else None
@@ -689,12 +793,15 @@ class CourseViewSet(viewsets.ModelViewSet):
         manageable_organizations = list(
             course.organizations.filter(id__in=get_manageable_organization_ids_for_user(request.user))
         )
+        can_manage_course = bool(manageable_organizations) or course.created_by_id == request.user.id
 
         if request.method == 'GET':
+            if not can_manage_course:
+                raise serializers.ValidationError('You do not have permission to view enrollment invitations for this course.')
             invitations = course.enrollment_invitations.select_related('invited_by').all()
             return Response(CourseEnrollmentInvitationSerializer(invitations, many=True).data)
 
-        if not manageable_organizations and course.created_by_id != request.user.id:
+        if not can_manage_course:
             raise serializers.ValidationError('You do not have permission to invite enrollments to this course.')
 
         selected_organization = manageable_organizations[0] if manageable_organizations else None
@@ -725,6 +832,11 @@ class CourseViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='enroll')
     def enroll(self, request, pk=None):
         course = self.get_object()
+        manageable_ids = get_manageable_organization_ids_for_user(request.user)
+        if user_can_manage_course(user=request.user, course=course, manageable_ids=manageable_ids):
+            raise serializers.ValidationError('You cannot enroll in a course you manage.')
+        if CourseInstructorAssignment.objects.filter(course=course, user=request.user).exists():
+            raise serializers.ValidationError('Instructors cannot enroll in the course they teach.')
 
         enrollment, created = CourseEnrollmentAssignment.objects.get_or_create(
             course=course,

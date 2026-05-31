@@ -6,7 +6,13 @@ import {
   fetchOrganizationDashboard,
   sendOrganizationInvitation,
   updateOrganizationCourse,
-} from '../lib/api'
+} from '../lib/api/organizations'
+import {
+  CourseOutlineEditor,
+  createEmptyPhase,
+  normalizeEditablePhases,
+  type EditableCoursePhase,
+} from '../components/CourseOutlineEditor'
 import type {
   Course,
   CourseCategory,
@@ -26,6 +32,8 @@ type CourseFormState = {
   categoryIds: string[]
   organizationIds: string[]
   thumbnail: File | null
+  is_visible: boolean
+  phases: EditableCoursePhase[]
 }
 
 const emptyCourseForm: CourseFormState = {
@@ -34,6 +42,8 @@ const emptyCourseForm: CourseFormState = {
   categoryIds: [],
   organizationIds: [],
   thumbnail: null,
+  is_visible: true,
+  phases: [createEmptyPhase()],
 }
 
 function MetricCard({
@@ -235,16 +245,24 @@ function WorkspaceSectionNav({
   activeSection,
   onChange,
   stats,
+  canManageInvitations,
 }: {
   activeSection: WorkspaceSection
   onChange: (section: WorkspaceSection) => void
   stats: OrganizationDashboardData['stats']
+  canManageInvitations: boolean
 }) {
   const items: Array<{ key: WorkspaceSection; label: string; count: number }> = [
     { key: 'courses', label: 'Courses', count: stats.course_count },
-    { key: 'invitations', label: 'Invitations', count: stats.pending_invitation_count },
     { key: 'members', label: 'Members', count: stats.member_count },
   ]
+  if (canManageInvitations) {
+    items.splice(1, 0, {
+      key: 'invitations',
+      label: 'Invitations',
+      count: stats.pending_invitation_count,
+    })
+  }
 
   return (
     <div className="sv-panel" style={{ marginBottom: 12 }}>
@@ -276,7 +294,50 @@ function toCourseFormState(course: Course): CourseFormState {
     categoryIds: course.categories.map((category) => category.id),
     organizationIds: course.organizations.map((organization) => organization.id),
     thumbnail: null,
+    is_visible: course.is_visible,
+    phases: normalizeEditablePhases(course.phases),
   }
+}
+
+function serializePhasesForPayload(phases: EditableCoursePhase[]) {
+  return phases
+    .filter((phase) => phase.name.trim())
+    .map((phase, phaseIndex) => ({
+      id: phase.id,
+      name: phase.name.trim(),
+      description: phase.description.trim(),
+      order: phaseIndex,
+      sections: phase.sections
+        .filter((section) => section.name.trim())
+        .map((section, sectionIndex) => ({
+          id: section.id,
+          name: section.name.trim(),
+          order: sectionIndex,
+          subsections: section.subsections
+            .filter((subsection) => subsection.name.trim())
+            .map((subsection, subsectionIndex) => ({
+              id: subsection.id,
+              name: subsection.name.trim(),
+              order: subsectionIndex,
+              videos: subsection.videos
+                .filter((video) => video.title.trim() || video.embed_code.trim())
+                .map((video, videoIndex) => ({
+                  id: video.id,
+                  title: video.title.trim(),
+                  embed_code: video.embed_code.trim(),
+                  order: videoIndex,
+                })),
+              notes: subsection.notes
+                .filter((note) => note.file || note.file_url)
+                .map((note, noteIndex) => ({
+                  id: note.id,
+                  title: note.title.trim(),
+                  order: noteIndex,
+                  file: note.file,
+                })),
+            })),
+        })),
+    }))
 }
 
 function CourseForm({
@@ -337,6 +398,8 @@ function CourseForm({
         categoryIds: form.categoryIds,
         organizationIds: Array.from(new Set([...form.organizationIds, orgId])),
         thumbnail: form.thumbnail,
+        is_visible: form.is_visible,
+        phaseData: serializePhasesForPayload(form.phases),
       }
 
       if (editingCourse) {
@@ -410,6 +473,19 @@ function CourseForm({
         />
       </label>
 
+      <label className="sv-check sv-check--block" style={{ marginTop: 12 }}>
+        <input
+          type="checkbox"
+          checked={form.is_visible}
+          onChange={(e) => setForm({ ...form, is_visible: e.target.checked })}
+          disabled={!canManage}
+        />
+        <span>
+          Visible in course catalog
+          <small className="sv-check__hint">Hidden courses remain available to managers, instructors, and the course creator.</small>
+        </span>
+      </label>
+
       <div className="sv-grid-2" style={{ marginBottom: 0 }}>
         <div className="sv-selector-card">
           <div className="sv-selector-card__title">Categories</div>
@@ -462,6 +538,12 @@ function CourseForm({
           </div>
         </div>
       </div>
+
+      <CourseOutlineEditor
+        phases={form.phases}
+        onChange={(phases) => setForm((current) => ({ ...current, phases }))}
+        disabled={!canManage}
+      />
 
       <div className="sv-form-actions">
         <button
@@ -549,6 +631,7 @@ function CourseCard({
               {organization.name}
             </span>
           ))}
+          <span className="sv-mini-pill">{course.is_visible ? 'Visible' : 'Hidden'}</span>
         </div>
       </div>
     </article>
@@ -615,6 +698,11 @@ export function OrgDashboardPage({ token }: { token: string }) {
   const canInvite = permissions.can_manage_invitations
   const canManageMembers = permissions.can_manage_members
   const canManageCourses = permissions.can_manage_courses
+  const visibleSection: WorkspaceSection = canInvite
+    ? activeSection
+    : activeSection === 'members'
+      ? 'members'
+      : 'courses'
   const organizationOptions = manageable_organizations.some((item) => item.id === organizationId)
     ? manageable_organizations
     : [{ id: organizationId, name: organization.name }, ...manageable_organizations]
@@ -654,12 +742,14 @@ export function OrgDashboardPage({ token }: { token: string }) {
 
       <div className="sv-metrics" style={{ marginBottom: 16 }}>
         <MetricCard label="Courses" value={stats.course_count} note="Active in this workspace" icon={<Icon.Chart />} />
-        <MetricCard
-          label="Pending invites"
-          value={stats.pending_invitation_count}
-          note={stats.pending_invitation_count === 0 ? 'None pending' : 'Awaiting response'}
-          icon={<Icon.Mail />}
-        />
+        {canInvite && (
+          <MetricCard
+            label="Pending invites"
+            value={stats.pending_invitation_count}
+            note={stats.pending_invitation_count === 0 ? 'None pending' : 'Awaiting response'}
+            icon={<Icon.Mail />}
+          />
+        )}
         <MetricCard label="Members" value={stats.member_count} note="Total workspace members" icon={<Icon.Users />} />
         <MetricCard label="Managers" value={stats.manager_count} note="Can run operations" icon={<Icon.Settings />} />
       </div>
@@ -675,15 +765,20 @@ export function OrgDashboardPage({ token }: { token: string }) {
           </p>
           <div className="sv-tag-group" style={{ marginTop: 14 }}>
             <span className="sv-tag">Courses</span>
-            <span className="sv-tag">Invitations</span>
+            {canInvite && <span className="sv-tag">Invitations</span>}
             <span className="sv-tag">Members</span>
           </div>
         </div>
       </div>
 
-      <WorkspaceSectionNav activeSection={activeSection} onChange={setActiveSection} stats={stats} />
+      <WorkspaceSectionNav
+        activeSection={visibleSection}
+        onChange={setActiveSection}
+        stats={stats}
+        canManageInvitations={canInvite}
+      />
 
-      {activeSection === 'courses' && (
+      {visibleSection === 'courses' && (
         <div className="sv-grid-2">
           <div className="sv-panel">
             <CourseForm
@@ -735,7 +830,7 @@ export function OrgDashboardPage({ token }: { token: string }) {
         </div>
       )}
 
-      {activeSection === 'invitations' && (
+      {canInvite && visibleSection === 'invitations' && (
         <div className="sv-panel">
           <div className="sv-panel__head">
             <span className="sv-panel__title">Invitations</span>
@@ -778,7 +873,7 @@ export function OrgDashboardPage({ token }: { token: string }) {
         </div>
       )}
 
-      {activeSection === 'members' && (
+      {visibleSection === 'members' && (
         <div className="sv-panel">
           <div className="sv-panel__head">
             <span className="sv-panel__title">Members</span>

@@ -119,6 +119,33 @@ const Icon = {
       <path d="M1.5 13V6M5.5 13V3M9.5 13V7.5M13.5 13V5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
     </svg>
   ),
+  Document: () => (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <path d="M4 1.75h4.5L11.75 5v8.25a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10.5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+      <path d="M8.5 1.75V5h3.25" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+      <path d="M5.5 7.25h4M5.5 9.5h4M5.5 11.75h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
+  PlayCircle: () => (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <circle cx="7.5" cy="7.5" r="5.75" stroke="currentColor" strokeWidth="1.2"/>
+      <path d="M6.25 5.5l3.25 2-3.25 2v-4Z" fill="currentColor"/>
+    </svg>
+  ),
+  Swap: () => (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <path d="M3 4h8.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M9.8 2.5L12 4l-2.2 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12 11H3.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M5.2 9.5 3 11l2.2 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  Chat: () => (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <path d="M2 3.2C2 2.54 2.54 2 3.2 2h8.6c.66 0 1.2.54 1.2 1.2v5.1c0 .66-.54 1.2-1.2 1.2H7.2L4.2 12V9.5H3.2c-.66 0-1.2-.54-1.2-1.2V3.2Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+      <path d="M4.2 5.2h6.6M4.2 7.4h4.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
   Plus: () => (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -237,6 +264,23 @@ function Sidebar({
           to="/dashboard/courses"
           icon={<Icon.Chart />}
           label="Courses"
+        />
+
+        <span className="sv-sidebar__section-label">Skill Swap</span>
+        <NavItem
+          to="/dashboard/skill-swap"
+          icon={<Icon.Swap />}
+          label="Skills"
+        />
+        <NavItem
+          to="/dashboard/skill-swap/matches"
+          icon={<Icon.Users />}
+          label="Matches"
+        />
+        <NavItem
+          to="/dashboard/skill-swap/chat"
+          icon={<Icon.Chat />}
+          label="Chat"
         />
 
         

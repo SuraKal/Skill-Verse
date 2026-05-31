@@ -7,7 +7,13 @@ import {
   fetchCourseWorkspace,
   updateCourse,
   enrollInCourse,
-} from "../lib/api";
+} from "../lib/api/courses";
+import {
+  CourseOutlineEditor,
+  createEmptyPhase,
+  normalizeEditablePhases,
+  type EditableCoursePhase,
+} from '../components/CourseOutlineEditor'
 import { Icon } from '../components/DashboardLayout'
 import type { Course, CourseCategory, CourseWorkspaceData, OrganizationOption } from '../types'
 import '../styles/Dashboard.css'
@@ -20,8 +26,10 @@ type CourseFormState = {
   categoryIds: string[];
   organizationIds: string[];
   thumbnail: File | null;
+  is_visible: boolean;
   privacy?: "public" | "private";
   price_type?: "free" | "paid";
+  phases: EditableCoursePhase[];
 };
 
 const emptyCourseForm: CourseFormState = {
@@ -30,8 +38,10 @@ const emptyCourseForm: CourseFormState = {
   categoryIds: [],
   organizationIds: [],
   thumbnail: null,
+  is_visible: true,
   privacy: 'public',
   price_type: 'free',
+  phases: [createEmptyPhase()],
 }
 
 function toggleSelection(values: string[], value: string) {
@@ -47,9 +57,52 @@ function toCourseFormState(course: Course): CourseFormState {
       (organization) => organization.id,
     ),
     thumbnail: null,
+    is_visible: course.is_visible,
     privacy: course.privacy,
     price_type: course.price_type,
+    phases: normalizeEditablePhases(course.phases),
   };
+}
+
+function serializePhasesForPayload(phases: EditableCoursePhase[]) {
+  return phases
+    .filter((phase) => phase.name.trim())
+    .map((phase, phaseIndex) => ({
+      id: phase.id,
+      name: phase.name.trim(),
+      description: phase.description.trim(),
+      order: phaseIndex,
+      sections: phase.sections
+        .filter((section) => section.name.trim())
+        .map((section, sectionIndex) => ({
+          id: section.id,
+          name: section.name.trim(),
+          order: sectionIndex,
+          subsections: section.subsections
+            .filter((subsection) => subsection.name.trim())
+            .map((subsection, subsectionIndex) => ({
+              id: subsection.id,
+              name: subsection.name.trim(),
+              order: subsectionIndex,
+              videos: subsection.videos
+                .filter((video) => video.title.trim() || video.embed_code.trim())
+                .map((video, videoIndex) => ({
+                  id: video.id,
+                  title: video.title.trim(),
+                  embed_code: video.embed_code.trim(),
+                  order: videoIndex,
+                })),
+              notes: subsection.notes
+                .filter((note) => note.file || note.file_url)
+                .map((note, noteIndex) => ({
+                  id: note.id,
+                  title: note.title.trim(),
+                  order: noteIndex,
+                  file: note.file,
+                })),
+            })),
+        })),
+    }))
 }
 
 function CourseScopeNav({
@@ -133,8 +186,10 @@ function CourseComposer({
         categoryIds: form.categoryIds,
         organizationIds: form.organizationIds,
         thumbnail: form.thumbnail,
+        is_visible: form.is_visible,
         privacy: form.privacy,
         price_type: form.price_type,
+        phaseData: serializePhasesForPayload(form.phases),
       }
 
       if (editingCourse) {
@@ -226,6 +281,18 @@ function CourseComposer({
         </select>
       </label>
 
+      <label className="sv-check sv-check--block" style={{ marginTop: 12 }}>
+        <input
+          type="checkbox"
+          checked={form.is_visible}
+          onChange={(event) => setForm({ ...form, is_visible: event.target.checked })}
+        />
+        <span>
+          Visible in course catalog
+          <small className="sv-check__hint">Hidden courses stay visible to managers, instructors, and the course creator.</small>
+        </span>
+      </label>
+
 
       <div className="sv-grid-2" style={{ marginBottom: 0 }}>
         <div className="sv-selector-card">
@@ -285,6 +352,11 @@ function CourseComposer({
         </div>
       </div>
 
+      <CourseOutlineEditor
+        phases={form.phases}
+        onChange={(phases) => setForm((current) => ({ ...current, phases }))}
+      />
+
       <div className="sv-form-actions">
         <button className="btn btn--blue btn--sm" type="button" onClick={handleSubmit} disabled={saving || !isValid}>
           {saving ? 'Saving...' : editingCourse ? 'Update course' : 'Create course'}
@@ -326,6 +398,7 @@ function CourseCard({
   
   const privacyLabel = course.is_public ? 'Public' : 'Private'
   const priceTypeLabel = course.is_free ? 'Free' : 'Paid'
+  const visibilityLabel = course.is_visible ? 'Visible' : 'Hidden'
   return (
     <article className="sv-course-card">
       <div className="sv-course-card__media">
@@ -352,6 +425,7 @@ function CourseCard({
             <div className="sv-course-card__meta">
               <span className="sv-tag"> {privacyLabel} </span>
               <span className="sv-tag"> {priceTypeLabel} </span>
+              <span className="sv-tag"> {visibilityLabel} </span>
             </div>
           </div>
           <div className="sv-course-card__actions">
@@ -400,7 +474,7 @@ function CourseCard({
           ))}
         </div>
 
-        {!course.can_manage && !course.is_enrolled && !course.is_instructor && (
+        {course.can_enroll && (
           <div className="sv-course-card__actions sv-course-card__middle">
             <button
               className="btn btn--ghost btn--sm"
@@ -453,7 +527,7 @@ export function CoursesPage({ token }: { token: string }) {
         return data.courses.filter((course) => course.is_enrolled)
       case 'all':
       default:
-        return data.courses.filter((course) => course.is_public || course.is_member_course || course.is_instructor || course.is_created_by_me)
+        return data.courses
     }
   }, [activeScope, data])
 

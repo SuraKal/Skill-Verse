@@ -13,15 +13,64 @@ import type {
   UserProfileUpdatePayload,
 } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api'
 const AUTH_SESSION_EVENT = 'skillverse:auth-session'
 
-const jsonHeaders = (token?: string) => ({
+type CourseNotePayload = {
+  id?: string
+  title: string
+  order: number
+  file?: File | null
+}
+
+type CourseVideoPayload = {
+  id?: string
+  title: string
+  embed_code: string
+  order: number
+}
+
+type CourseSubsectionPayload = {
+  id?: string
+  name: string
+  order: number
+  videos: CourseVideoPayload[]
+  notes: CourseNotePayload[]
+}
+
+type CourseSectionPayload = {
+  id?: string
+  name: string
+  order: number
+  subsections: CourseSubsectionPayload[]
+}
+
+type CoursePhasePayload = {
+  id?: string
+  name: string
+  description: string
+  order: number
+  sections: CourseSectionPayload[]
+}
+
+type CourseUpsertPayload = {
+  title: string
+  description: string
+  categoryIds: string[]
+  organizationIds: string[]
+  thumbnail?: File | null
+  is_visible?: boolean
+  privacy?: 'public' | 'private'
+  price_type?: 'free' | 'paid'
+  phaseData?: CoursePhasePayload[]
+}
+
+export const jsonHeaders = (token?: string) => ({
   'Content-Type': 'application/json',
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
 })
 
-function notifyAuthSession(accessToken: string | null) {
+export function notifyAuthSession(accessToken: string | null) {
   window.dispatchEvent(
     new CustomEvent<string | null>(AUTH_SESSION_EVENT, {
       detail: accessToken,
@@ -29,14 +78,14 @@ function notifyAuthSession(accessToken: string | null) {
   )
 }
 
-function clearStoredSession() {
+export function clearStoredSession() {
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')
   localStorage.removeItem('session_user')
   notifyAuthSession(null)
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem('refresh_token')
   if (!refreshToken) {
     clearStoredSession()
@@ -68,7 +117,7 @@ async function refreshAccessToken(): Promise<string | null> {
   return payload.access
 }
 
-async function authorizedFetch(
+export async function authorizedFetch(
   input: string,
   init: RequestInit = {},
   token: string,
@@ -117,7 +166,7 @@ async function authorizedFetch(
   return response;
 }
 
-async function parseJson<T>(response: Response): Promise<T> {
+export async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as
       | Record<string, string | string[] | undefined>
@@ -139,6 +188,52 @@ async function parseJson<T>(response: Response): Promise<T> {
     throw new Error(message)
   }
   return (await response.json()) as T
+}
+
+function appendCoursePayload(formData: FormData, payload: CourseUpsertPayload) {
+  formData.append('title', payload.title)
+  formData.append('description', payload.description)
+  formData.append('is_visible', String(payload.is_visible ?? true))
+  formData.append('privacy', payload.privacy ?? 'public')
+  formData.append('price_type', payload.price_type ?? 'free')
+  payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
+  payload.organizationIds.forEach((organizationId) => formData.append('organization_ids', organizationId))
+
+  const serializedPhases = (payload.phaseData ?? []).map((phase, phaseIndex) => ({
+    ...phase,
+    order: phase.order ?? phaseIndex,
+    sections: phase.sections.map((section, sectionIndex) => ({
+      ...section,
+      order: section.order ?? sectionIndex,
+      subsections: section.subsections.map((subsection, subsectionIndex) => ({
+        ...subsection,
+        order: subsection.order ?? subsectionIndex,
+        videos: subsection.videos.map((video, videoIndex) => ({
+          ...video,
+          order: video.order ?? videoIndex,
+        })),
+        notes: subsection.notes.map((note, noteIndex) => {
+          const nextNote: Record<string, string | number | undefined> = {
+            id: note.id,
+            title: note.title,
+            order: note.order ?? noteIndex,
+          }
+          if (note.file) {
+            const fileField = `note_upload_${crypto.randomUUID()}`
+            nextNote.file_field = fileField
+            formData.append(fileField, note.file)
+          }
+          return nextNote
+        }),
+      })),
+    })),
+  }))
+
+  formData.append('phase_data', JSON.stringify(serializedPhases))
+
+  if (payload.thumbnail) {
+    formData.append('thumbnail', payload.thumbnail)
+  }
 }
 
 export async function fetchPublicBootstrap(): Promise<PlatformBootstrap> {
@@ -274,24 +369,10 @@ export async function sendCourseEnrollmentInvitation(
 
 export async function createCourse(
   token: string,
-  payload: {
-    title: string
-    description: string
-    categoryIds: string[]
-    organizationIds: string[]
-    thumbnail?: File | null
-    privacy?: 'public' | 'private'
-  },
+  payload: CourseUpsertPayload,
 ): Promise<Record<string, unknown>> {
   const formData = new FormData()
-  formData.append('title', payload.title)
-  formData.append('description', payload.description)
-  formData.append('privacy', payload.privacy ?? 'public')
-  payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
-  payload.organizationIds.forEach((organizationId) => formData.append('organization_ids', organizationId))
-  if (payload.thumbnail) {
-    formData.append('thumbnail', payload.thumbnail)
-  }
+  appendCoursePayload(formData, payload)
 
   const response = await authorizedFetch(
     `${API_BASE_URL}/courses/`,
@@ -307,30 +388,10 @@ export async function createCourse(
 export async function updateCourse(
   token: string,
   courseId: string,
-  payload: {
-    title: string;
-    description: string;
-    categoryIds: string[];
-    organizationIds: string[];
-    thumbnail?: File | null;
-    privacy?: "public" | "private";
-    price_type?: "free" | "paid";
-  },
+  payload: CourseUpsertPayload,
 ): Promise<Record<string, unknown>> {
   const formData = new FormData();
-  formData.append("title", payload.title);
-  formData.append("description", payload.description);
-  formData.append("privacy", payload.privacy ?? "public");
-  formData.append("price_type", payload.price_type ?? "free");
-  payload.categoryIds.forEach((categoryId) =>
-    formData.append("category_ids", categoryId),
-  );
-  payload.organizationIds.forEach((organizationId) =>
-    formData.append("organization_ids", organizationId),
-  );
-  if (payload.thumbnail) {
-    formData.append("thumbnail", payload.thumbnail);
-  }
+  appendCoursePayload(formData, payload)
 
   const response = await authorizedFetch(
     `${API_BASE_URL}/courses/${courseId}/`,
@@ -382,24 +443,10 @@ export async function enrollInCourse(
 export async function createOrganizationCourse(
   token: string,
   organizationId: string,
-  payload: {
-    title: string
-    description: string
-    categoryIds: string[]
-    organizationIds: string[]
-    thumbnail?: File | null
-  },
+  payload: CourseUpsertPayload,
 ): Promise<Record<string, unknown>> {
   const formData = new FormData()
-  formData.append('title', payload.title)
-  formData.append('description', payload.description)
-  payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
-  payload.organizationIds.forEach((linkedOrganizationId) =>
-    formData.append('organization_ids', linkedOrganizationId),
-  )
-  if (payload.thumbnail) {
-    formData.append('thumbnail', payload.thumbnail)
-  }
+  appendCoursePayload(formData, payload)
 
   const response = await authorizedFetch(
     `${API_BASE_URL}/organizations/${organizationId}/courses/`,
@@ -416,24 +463,10 @@ export async function updateOrganizationCourse(
   token: string,
   organizationId: string,
   courseId: string,
-  payload: {
-    title: string
-    description: string
-    categoryIds: string[]
-    organizationIds: string[]
-    thumbnail?: File | null
-  },
+  payload: CourseUpsertPayload,
 ): Promise<Record<string, unknown>> {
   const formData = new FormData()
-  formData.append('title', payload.title)
-  formData.append('description', payload.description)
-  payload.categoryIds.forEach((categoryId) => formData.append('category_ids', categoryId))
-  payload.organizationIds.forEach((linkedOrganizationId) =>
-    formData.append('organization_ids', linkedOrganizationId),
-  )
-  if (payload.thumbnail) {
-    formData.append('thumbnail', payload.thumbnail)
-  }
+  appendCoursePayload(formData, payload)
 
   const response = await authorizedFetch(
     `${API_BASE_URL}/organizations/${organizationId}/courses/${courseId}/`,

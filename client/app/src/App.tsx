@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DashboardLayout } from './components/DashboardLayout'
 import { fetchDashboard, subscribeToAuthSessionChanges } from './lib/api'
 import { AuthPage } from './pages/AuthPage'
-import { CourseDetailPage } from './pages/CourseDetailPage'
-import { CoursesPage } from './pages/CoursesPage'
 import {
   AnalyticsPage,
   InvitationsPage,
@@ -17,7 +15,14 @@ import {
 import { DashboardPage } from './pages/DashboardPage'
 import { InvitationLandingPage } from './pages/InvitationLandingPage'
 import { LandingPage } from './pages/LandingPage'
-import { OrgDashboardPage } from './pages/OrgDashboardPage'
+import { CourseDetailPage } from './features/courses/pages/CourseDetailPage'
+import { CoursesPage } from './features/courses/pages/CoursesPage'
+import { OrgDashboardPage } from './features/organizations/pages/OrgDashboardPage'
+import {
+  SkillSwapChatPage,
+  SkillSwapMatchesPage,
+  SkillSwapSkillsPage,
+} from './features/skillSwap/pages/SkillSwapPages'
 import type { DashboardData, LoginResponse } from './types'
 
 function RequireAuth({
@@ -35,6 +40,34 @@ function RequireAuth({
 }
 
 function getDashboardChrome(pathname: string) {
+  if (pathname.startsWith('/dashboard/skill-swap/chat/')) {
+    return {
+      title: 'Skill Swap Chat',
+      breadcrumb: 'Community / Private conversation',
+    }
+  }
+
+  if (pathname.startsWith('/dashboard/skill-swap/chat')) {
+    return {
+      title: 'Skill Swap Chat',
+      breadcrumb: 'Community / Private conversation',
+    }
+  }
+
+  if (pathname.startsWith('/dashboard/skill-swap/matches')) {
+    return {
+      title: 'Skill Matches',
+      breadcrumb: 'Community / Text-based matching',
+    }
+  }
+
+  if (pathname.startsWith('/dashboard/skill-swap')) {
+    return {
+      title: 'Skill Swap',
+      breadcrumb: 'Community / Skill exchange',
+    }
+  }
+
   if (pathname.startsWith('/dashboard/courses/')) {
     return {
       title: 'Course',
@@ -267,6 +300,22 @@ export default function App() {
           <Route
             path="courses/:courseId"
             element={token ? <CourseDetailPage token={token} /> : null}
+          />
+          <Route
+            path="skill-swap"
+            element={token ? <SkillSwapSkillsPage token={token} /> : null}
+          />
+          <Route
+            path="skill-swap/matches"
+            element={token ? <SkillSwapMatchesPage token={token} /> : null}
+          />
+          <Route
+            path="skill-swap/chat"
+            element={token ? <SkillSwapChatPage token={token} /> : null}
+          />
+          <Route
+            path="skill-swap/chat/:threadId"
+            element={token ? <SkillSwapChatPage token={token} /> : null}
           />
           <Route
             path="invitations"

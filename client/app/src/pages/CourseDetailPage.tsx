@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { fetchCourseManagement, sendCourseInstructorInvitation, sendCourseEnrollmentInvitation } from '../lib/api'
+import {
+  fetchCourseManagement,
+  sendCourseInstructorInvitation,
+  sendCourseEnrollmentInvitation,
+  updateCourse,
+} from '../lib/api/courses'
+import { CourseOutlineEditor, CourseOutlinePreview, normalizeEditablePhases, type EditableCoursePhase } from '../components/CourseOutlineEditor'
 import { Avatar, Icon } from '../components/DashboardLayout'
 import type {
   CourseInstructorAssignment,
@@ -15,12 +21,55 @@ import '../styles/Dashboard.css'
 
 type CourseManagementTab = 'details' | 'instructors' | 'enrollments'
 
+function serializePhasesForPayload(phases: EditableCoursePhase[]) {
+  return phases
+    .filter((phase) => phase.name.trim())
+    .map((phase, phaseIndex) => ({
+      id: phase.id,
+      name: phase.name.trim(),
+      description: phase.description.trim(),
+      order: phaseIndex,
+      sections: phase.sections
+        .filter((section) => section.name.trim())
+        .map((section, sectionIndex) => ({
+          id: section.id,
+          name: section.name.trim(),
+          order: sectionIndex,
+          subsections: section.subsections
+            .filter((subsection) => subsection.name.trim())
+            .map((subsection, subsectionIndex) => ({
+              id: subsection.id,
+              name: subsection.name.trim(),
+              order: subsectionIndex,
+              videos: subsection.videos
+                .filter((video) => video.title.trim() || video.embed_code.trim())
+                .map((video, videoIndex) => ({
+                  id: video.id,
+                  title: video.title.trim(),
+                  embed_code: video.embed_code.trim(),
+                  order: videoIndex,
+                })),
+              notes: subsection.notes
+                .filter((note) => note.file || note.file_url)
+                .map((note, noteIndex) => ({
+                  id: note.id,
+                  title: note.title.trim(),
+                  order: noteIndex,
+                  file: note.file,
+                })),
+            })),
+        })),
+    }))
+}
+
 function CourseTabs({
   activeTab,
   onChange,
+  canManageCourse,
 }: {
   activeTab: CourseManagementTab
   onChange: (tab: CourseManagementTab) => void
+  canManageCourse: boolean
 }) {
   return (
     <div className="sv-panel" style={{ marginBottom: 12 }}>
@@ -32,23 +81,29 @@ function CourseTabs({
         >
           <span>Details</span>
         </button>
-        <button
-          type="button"
-          className={`sv-workspace-nav__item${activeTab === 'instructors' ? ' sv-workspace-nav__item--active' : ''}`}
-          onClick={() => onChange('instructors')}
-        >
-          <span>Instructors</span>
-        </button>
-        <button
-          type="button"
-          className={`sv-workspace-nav__item${activeTab === 'enrollments' ? ' sv-workspace-nav__item--active' : ''}`}
-          onClick={() => onChange('enrollments')}
-        >
-          <span>Enrollments</span>
-        </button>
+        {canManageCourse && (
+          <>
+            <button
+              type="button"
+              className={`sv-workspace-nav__item${activeTab === 'instructors' ? ' sv-workspace-nav__item--active' : ''}`}
+              onClick={() => onChange('instructors')}
+            >
+              <span>Instructors</span>
+            </button>
+            <button
+              type="button"
+              className={`sv-workspace-nav__item${activeTab === 'enrollments' ? ' sv-workspace-nav__item--active' : ''}`}
+              onClick={() => onChange('enrollments')}
+            >
+              <span>Enrollments</span>
+            </button>
+          </>
+        )}
       </div>
       <p className="sv-panel__sub" style={{ marginTop: 14 }}>
-        This layout is ready for future modules like enrollments, assessments, certificates, and other course operations.
+        {canManageCourse
+          ? 'This layout is ready for future modules like enrollments, assessments, certificates, and other course operations.'
+          : 'You can review the course details here. Management tools are reserved for course creators and organization managers.'}
       </p>
     </div>
   )
@@ -402,18 +457,56 @@ export function CourseDetailPage({ token }: { token: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<CourseManagementTab>('details')
+  const [isEditingOutline, setIsEditingOutline] = useState(false)
+  const [outlinePhases, setOutlinePhases] = useState<EditableCoursePhase[]>([])
+  const [outlineSaving, setOutlineSaving] = useState(false)
+  const [outlineError, setOutlineError] = useState<string | null>(null)
 
   const load = () => {
     if (!courseId) return
     setLoading(true)
     setError(null)
     fetchCourseManagement(token, courseId)
-      .then(setData)
+      .then((nextData) => {
+        setData(nextData)
+        setOutlinePhases(normalizeEditablePhases(nextData.course.phases))
+      })
       .catch((loadError: Error) => setError(loadError.message))
       .finally(() => setLoading(false))
   }
 
   useEffect(load, [token, courseId])
+
+  const handleOutlineCancel = () => {
+    if (!data) return
+    setOutlinePhases(normalizeEditablePhases(data.course.phases))
+    setOutlineError(null)
+    setIsEditingOutline(false)
+  }
+
+  const handleOutlineSave = async () => {
+    if (!data || !courseId) return
+    setOutlineSaving(true)
+    setOutlineError(null)
+    try {
+      await updateCourse(token, courseId, {
+        title: data.course.title,
+        description: data.course.description,
+        categoryIds: data.course.categories.map((category) => category.id),
+        organizationIds: data.course.organizations.map((organization) => organization.id),
+        is_visible: data.course.is_visible,
+        privacy: data.course.privacy,
+        price_type: data.course.price_type,
+        phaseData: serializePhasesForPayload(outlinePhases),
+      })
+      setIsEditingOutline(false)
+      load()
+    } catch (saveError) {
+      setOutlineError(saveError instanceof Error ? saveError.message : 'Failed to save course outline.')
+    } finally {
+      setOutlineSaving(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -453,6 +546,8 @@ export function CourseDetailPage({ token }: { token: string }) {
     enrollments,
     enrollment_invitations,
   } = data;
+  const canManageCourse = permissions.can_manage_course
+  const visibleTab: CourseManagementTab = canManageCourse ? activeTab : 'details'
 
   return (
     <>
@@ -480,23 +575,25 @@ export function CourseDetailPage({ token }: { token: string }) {
           <div className="sv-metric__value">{stats.instructor_count}</div>
           <div className="sv-metric__note">Assigned to this course</div>
         </div>
-        <div className="sv-metric">
-          <div className="sv-metric__header">
-            <span className="sv-metric__label">Pending invites</span>
-            <span className="sv-metric__icon" aria-hidden>
-              <Icon.Mail />
-            </span>
+        {canManageCourse && (
+          <div className="sv-metric">
+            <div className="sv-metric__header">
+              <span className="sv-metric__label">Pending invites</span>
+              <span className="sv-metric__icon" aria-hidden>
+                <Icon.Mail />
+              </span>
+            </div>
+            <div className="sv-metric__value">
+              {stats.pending_instructor_invitation_count}
+            </div>
+            <div className="sv-metric__note">Awaiting response</div>
           </div>
-          <div className="sv-metric__value">
-            {stats.pending_instructor_invitation_count}
-          </div>
-          <div className="sv-metric__note">Awaiting response</div>
-        </div>
+        )}
       </div>
 
-      <CourseTabs activeTab={activeTab} onChange={setActiveTab} />
+      <CourseTabs activeTab={visibleTab} onChange={setActiveTab} canManageCourse={canManageCourse} />
 
-      {activeTab === "details" && (
+      {visibleTab === "details" && (
         <>
           <div className="sv-grid">
             <div className="sv-panel">
@@ -525,6 +622,11 @@ export function CourseDetailPage({ token }: { token: string }) {
                 <div className="sv-course-detail-hero__body">
                   <div className="sv-course-detail-hero__title">
                     {course.title}
+                  </div>
+                  <div className="sv-tag-group" style={{ marginTop: 10 }}>
+                    <span className="sv-tag">{course.is_visible ? 'Visible' : 'Hidden'}</span>
+                    <span className="sv-tag">{course.is_public ? 'Public' : 'Private'}</span>
+                    <span className="sv-tag">{course.is_free ? 'Free' : 'Paid'}</span>
                   </div>
                   <p className="sv-course-card__description">
                     {course.description ||
@@ -574,13 +676,69 @@ export function CourseDetailPage({ token }: { token: string }) {
                   </div>
                 </div>
               </div>
+
+              <div className="sv-selector-card" style={{ marginTop: 14 }}>
+                <div className="sv-panel__head" style={{ marginBottom: 8 }}>
+                  <div>
+                    <div className="sv-selector-card__title">Course outline</div>
+                    <div className="sv-selector-card__sub">
+                      Browse the learning structure by phase, section, subsection, and lesson content without opening the entire course at once.
+                    </div>
+                  </div>
+                  {canManageCourse && !isEditingOutline && (
+                    <button className="btn btn--ghost btn--sm" type="button" onClick={() => setIsEditingOutline(true)}>
+                      Edit outline
+                    </button>
+                  )}
+                </div>
+
+                {isEditingOutline ? (
+                  <>
+                    <CourseOutlineEditor
+                      phases={outlinePhases}
+                      onChange={setOutlinePhases}
+                      disabled={outlineSaving}
+                    />
+                    <div className="sv-form-actions">
+                      <button
+                        className="btn btn--blue btn--sm"
+                        type="button"
+                        onClick={handleOutlineSave}
+                        disabled={outlineSaving}
+                      >
+                        {outlineSaving ? 'Saving...' : 'Save outline'}
+                      </button>
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        type="button"
+                        onClick={handleOutlineCancel}
+                        disabled={outlineSaving}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {outlineError && (
+                      <p className="sv-inline-error" role="alert">
+                        {outlineError}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ marginTop: 12 }}>
+                    <CourseOutlinePreview
+                      phases={course.phases}
+                      emptyMessage="No phases or sections have been added to this course yet."
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
           </div>
         </>
       )}
 
-      {activeTab === "instructors" && (
+      {visibleTab === "instructors" && (
         <>
           <div className="sv-grid-2">
             <div className="sv-panel">
@@ -689,7 +847,7 @@ export function CourseDetailPage({ token }: { token: string }) {
       )}
 
 
-      {activeTab === "enrollments" && (
+      {visibleTab === "enrollments" && (
         <>
           <div className="sv-grid-2">
             <div className="sv-panel">

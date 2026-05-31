@@ -55,21 +55,67 @@ export interface OrganizationOption {
   name: string
 }
 
+export interface CourseSection {
+  id: string
+  name: string
+}
+
+export interface CourseSubsectionVideo {
+  id: string
+  title: string
+  embed_code: string
+  order: number
+}
+
+export interface CourseSubsectionNote {
+  id: string
+  title: string
+  file: string
+  file_name: string
+  order: number
+}
+
+export interface CourseSubsection {
+  id: string
+  name: string
+  order: number
+  videos: CourseSubsectionVideo[]
+  notes: CourseSubsectionNote[]
+}
+
+export interface CoursePhaseSection {
+  id: string
+  order: number
+  section: CourseSection
+  subsections: CourseSubsection[]
+}
+
+export interface CoursePhase {
+  id: string
+  name: string
+  description: string
+  order: number
+  sections: CoursePhaseSection[]
+}
+
 export interface Course {
   id: string;
   title: string;
   created_by: User | null;
   description: string;
   thumbnail: string | null;
+  is_visible: boolean;
   privacy: "public" | "private";
   price_type: "free" | "paid";
   categories: CourseCategory[];
   organizations: OrganizationOption[];
+  phases: CoursePhase[];
   can_manage: boolean;
   is_created_by_me: boolean;
   is_instructor: boolean;
   is_enrolled: boolean;
   is_member_course: boolean;
+  can_enroll: boolean;
   is_public: boolean;
   is_free: boolean;
   instructor_count: number;
@@ -233,6 +279,69 @@ export interface CourseWorkspaceData {
     teaching: number
     enrolled: number
   }
+}
+
+export interface SkillSwapProfile {
+  id: string
+  user: User
+  teach_skills: string
+  learn_skills: string
+  summary: string
+  teach_skills_list: string[]
+  learn_skills_list: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface SkillSwapMatch {
+  id: string
+  teaching_user: User
+  learning_user: User
+  matched_skill: string
+  teaching_text: string
+  learning_text: string
+  match_score: number
+  is_active: boolean
+  chat_thread_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SkillChatMessage {
+  id: string
+  thread: string
+  sender: User
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SkillChatThread {
+  id: string
+  match: SkillSwapMatch
+  last_message_at: string | null
+  messages: SkillChatMessage[]
+  created_at: string
+  updated_at: string
+}
+
+export interface SkillSwapDashboardData {
+  profile: SkillSwapProfile | null
+  matches: SkillSwapMatch[]
+  threads: SkillChatThread[]
+  stats: {
+    teach_count: number
+    learn_count: number
+    match_count: number
+    thread_count: number
+    profile_completed: boolean
+  }
+}
+
+export interface SkillSwapProfileUpdatePayload {
+  teach_skills: string
+  learn_skills: string
+  summary: string
 }
 
 export interface LoginPayload {
